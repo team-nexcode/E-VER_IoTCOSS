@@ -95,7 +95,7 @@ const calcSummary = (devices: Device[]): PowerSummary => ({
   savingsPercent: 18.5,
 });
 
-export const useDeviceStore = create<DeviceStore>((set, get) => ({
+export const useDeviceStore = create<DeviceStore>((set) => ({
   devices: mockDevices,
   outletPositions: mockOutletPositions,
   selectedDeviceId: null,
