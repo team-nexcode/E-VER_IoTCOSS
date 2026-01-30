@@ -1,0 +1,470 @@
+================================================================================
+  IoTCOSS_NEXCODE - AWS EC2 서버 셋업 & 팀 협업 가이드
+================================================================================
+  작성일: 2026-01-27
+  대상: Ubuntu 22.04 / 24.04 LTS (AWS EC2)
+================================================================================
+
+
+[사전 준비물]
+  - AWS 계정 + EC2 인스턴스 (Ubuntu 22.04/24.04 LTS)
+  - 권장 사양: t3.small 이상 (vCPU 2, RAM 2GB+)
+  - 탄력적 IP (Elastic IP) 연결 (재부팅해도 IP 유지)
+  - 키페어 (.pem 파일) - 팀원 전원이 보유해야 함
+  - 도메인 (선택) - SSL 인증서 발급 시 필요
+
+
+================================================================================
+  STEP 1. EC2 보안 그룹 (방화벽) 설정
+================================================================================
+
+AWS 콘솔 > EC2 > 보안 그룹에서 인바운드 규칙 추가:
+
+  포트      | 프로토콜 | 소스          | 용도
+  ---------|---------|--------------|-----------------------------
+  22       | TCP     | 팀 IP만       | SSH 접속
+  80       | TCP     | 0.0.0.0/0    | HTTP (Nginx)
+  443      | TCP     | 0.0.0.0/0    | HTTPS (SSL 적용 후)
+  5173     | TCP     | 팀 IP만       | Vite 개발 서버 (개발 중만)
+  8000     | TCP     | 팀 IP만       | FastAPI 개발 서버 (개발 중만)
+  1883     | TCP     | 팀 IP만       | MQTT 브로커 (IoT 디바이스)
+
+  * "팀 IP만" = 팀원들의 공인 IP로 제한 (보안)
+  * 개발 완료 후 5173, 8000 포트는 닫을 것
+
+
+================================================================================
+  STEP 2. SSH 접속
+================================================================================
+
+# 키 권한 설정 (최초 1회)
+chmod 400 ~/your-key.pem
+
+# EC2 접속
+ssh -i ~/your-key.pem ubuntu@<EC2-퍼블릭-IP>
+
+  * <EC2-퍼블릭-IP> 는 AWS 콘솔에서 확인
+  * 팀원 각자 .pem 파일과 위 명령어로 접속
+
+
+================================================================================
+  STEP 3. 시스템 패키지 설치
+================================================================================
+
+# 시스템 업데이트
+sudo apt update && sudo apt upgrade -y
+
+# Python 3.11+ 설치
+sudo apt install -y python3 python3-venv python3-pip
+
+# Node.js 20 LTS 설치
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# PostgreSQL 설치 + 자동시작
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl enable --now postgresql
+
+# Redis 설치 + 자동시작
+sudo apt install -y redis-server
+sudo systemctl enable --now redis-server
+
+# Nginx 설치 + 자동시작
+sudo apt install -y nginx
+sudo systemctl enable --now nginx
+
+# MQTT 브로커 (Mosquitto) 설치 + 자동시작
+sudo apt install -y mosquitto mosquitto-clients
+sudo systemctl enable --now mosquitto
+
+# Git 설치
+sudo apt install -y git
+
+# 기타 유틸
+sudo apt install -y curl wget vim htop
+
+
+================================================================================
+  STEP 4. 프로젝트 코드 업로드
+================================================================================
+
+방법 A) Git 사용 (권장 - 팀 협업에 최적)
+-----------------------------------------
+  # EC2에서 실행
+  cd /home/ubuntu
+  git clone <깃허브-저장소-URL> IoTCOSS_NEXCODE
+  cd IoTCOSS_NEXCODE
+
+  * GitHub/GitLab 저장소를 만들고 팀원 전원 초대
+  * 코드 수정 → git push → EC2에서 git pull
+  * .env 파일은 .gitignore에 추가할 것 (비밀키 노출 방지)
+
+방법 B) SCP로 직접 복사 (Git 없이)
+-----------------------------------------
+  # 로컬에서 실행
+  scp -i ~/your-key.pem -r /path/to/IoTCOSS_NEXCODE ubuntu@<EC2-IP>:/home/ubuntu/
+
+
+================================================================================
+  STEP 5. PostgreSQL 데이터베이스 설정
+================================================================================
+
+# postgres 유저로 전환
+sudo -u postgres psql
+
+# SQL 명령어 실행 (psql 안에서):
+CREATE USER iotcoss WITH PASSWORD 'your_db_password_here';
+CREATE DATABASE iotcoss OWNER iotcoss;
+GRANT ALL PRIVILEGES ON DATABASE iotcoss TO iotcoss;
+\q
+
+  * 비밀번호는 반드시 변경할 것
+  * 이 정보를 Backend/.env에 반영
+
+
+================================================================================
+  STEP 6. Backend (FastAPI) 셋업
+================================================================================
+
+cd /home/ubuntu/IoTCOSS_NEXCODE/Backend
+
+# Python 가상환경 생성 + 활성화
+python3 -m venv venv
+source venv/bin/activate
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# .env 파일 수정 (실제 값으로 변경)
+vim .env
+# ─── .env 내용 ───
+# DATABASE_URL=postgresql+asyncpg://iotcoss:your_db_password_here@localhost:5432/iotcoss
+# REDIS_URL=redis://localhost:6379
+# MQTT_BROKER=localhost
+# MQTT_PORT=1883
+# SECRET_KEY=여기에-랜덤-문자열-넣기
+# ─────────────────
+
+# SECRET_KEY 생성 (터미널에서):
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# 서버 테스트 실행
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 브라우저에서 확인: http://<EC2-IP>:8000/health
+# Ctrl+C 로 종료
+
+
+================================================================================
+  STEP 7. Backend systemd 서비스 등록 (자동 실행)
+================================================================================
+
+sudo vim /etc/systemd/system/iotcoss-backend.service
+
+# ─── 아래 내용 붙여넣기 ───
+[Unit]
+Description=IoTCOSS FastAPI Backend
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/IoTCOSS_NEXCODE/Backend
+Environment=PATH=/home/ubuntu/IoTCOSS_NEXCODE/Backend/venv/bin
+ExecStart=/home/ubuntu/IoTCOSS_NEXCODE/Backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+# ──────────────────────────
+
+# 서비스 등록 + 시작
+sudo systemctl daemon-reload
+sudo systemctl enable --now iotcoss-backend
+
+# 상태 확인
+sudo systemctl status iotcoss-backend
+
+# 로그 보기
+sudo journalctl -u iotcoss-backend -f
+
+
+================================================================================
+  STEP 8. Frontend 빌드
+================================================================================
+
+cd /home/ubuntu/IoTCOSS_NEXCODE/Frontend
+
+# 의존성 설치
+npm install
+
+# 프로덕션 빌드 (정적 파일 생성 → dist/ 폴더)
+npm run build
+
+# 결과 확인
+ls dist/
+# → index.html, assets/ 등이 있으면 성공
+
+
+================================================================================
+  STEP 9. Nginx 설정 (핵심)
+================================================================================
+
+# 기본 설정 제거
+sudo rm /etc/nginx/sites-enabled/default
+
+# 프로젝트 설정 파일 생성
+sudo vim /etc/nginx/sites-available/iotcoss
+
+# ─── 아래 내용 붙여넣기 ───
+server {
+    listen 80;
+    server_name _;  # 도메인이 있으면 도메인명으로 변경
+
+    # React 정적 파일 서빙
+    root /home/ubuntu/IoTCOSS_NEXCODE/Frontend/dist;
+    index index.html;
+
+    # SPA 라우팅 지원 (React Router)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # FastAPI REST API 프록시
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket 프록시
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+
+    # FastAPI 문서 (Swagger UI)
+    location /docs {
+        proxy_pass http://127.0.0.1:8000;
+    }
+    location /openapi.json {
+        proxy_pass http://127.0.0.1:8000;
+    }
+}
+# ──────────────────────────
+
+# 설정 활성화
+sudo ln -s /etc/nginx/sites-available/iotcoss /etc/nginx/sites-enabled/
+
+# 설정 문법 검사
+sudo nginx -t
+
+# Nginx 재시작
+sudo systemctl restart nginx
+
+# 브라우저에서 확인: http://<EC2-IP>
+# → React 대시보드가 보이면 성공!
+
+
+================================================================================
+  STEP 10. SSL 인증서 (HTTPS) - 도메인이 있을 경우
+================================================================================
+
+# 도메인이 없으면 이 단계는 건너뛸 것
+
+sudo apt install -y certbot python3-certbot-nginx
+
+# 인증서 발급 (도메인을 본인 도메인으로 변경)
+sudo certbot --nginx -d yourdomain.com
+
+# 자동 갱신 테스트
+sudo certbot renew --dry-run
+
+  * Certbot이 Nginx 설정을 자동으로 HTTPS로 변경해줌
+  * 90일마다 자동 갱신됨
+
+
+================================================================================
+  팀 협업 워크플로우
+================================================================================
+
+[Git 기반 협업 흐름]
+
+  로컬 (팀원 각자 PC)          EC2 서버
+  ─────────────────          ──────────
+  코드 수정
+  git add + commit
+  git push  ──────────→  git pull
+                              npm run build (Frontend 변경 시)
+                              sudo systemctl restart iotcoss-backend (Backend 변경 시)
+                              sudo systemctl restart nginx (Nginx 설정 변경 시)
+
+[코드 반영 명령어 모음]
+
+  # EC2 접속 후
+  cd /home/ubuntu/IoTCOSS_NEXCODE
+
+  # 최신 코드 가져오기
+  git pull origin main
+
+  # Frontend만 변경된 경우
+  cd Frontend && npm run build
+
+  # Backend만 변경된 경우
+  cd Backend && source venv/bin/activate && pip install -r requirements.txt
+  sudo systemctl restart iotcoss-backend
+
+  # 둘 다 변경된 경우
+  cd /home/ubuntu/IoTCOSS_NEXCODE
+  cd Frontend && npm run build
+  sudo systemctl restart iotcoss-backend
+
+
+================================================================================
+  팀원 SSH 계정 생성 (선택 - 각자 계정으로 접속)
+================================================================================
+
+# 팀원별 리눅스 계정 생성 (ubuntu 계정에서 실행)
+sudo adduser teammate1
+sudo usermod -aG sudo teammate1
+
+# SSH 키 등록 (팀원이 ssh-keygen 으로 생성한 공개키를 등록)
+sudo mkdir -p /home/teammate1/.ssh
+sudo vim /home/teammate1/.ssh/authorized_keys
+# → 팀원의 공개키 (id_rsa.pub 내용) 붙여넣기
+sudo chown -R teammate1:teammate1 /home/teammate1/.ssh
+sudo chmod 700 /home/teammate1/.ssh
+sudo chmod 600 /home/teammate1/.ssh/authorized_keys
+
+# 프로젝트 폴더 권한 설정 (팀원 모두 접근 가능하게)
+sudo chown -R ubuntu:ubuntu /home/ubuntu/IoTCOSS_NEXCODE
+sudo chmod -R 775 /home/ubuntu/IoTCOSS_NEXCODE
+
+# 팀원 접속 방법:
+ssh teammate1@<EC2-IP>
+
+  * 또는 간단하게: .pem 키 하나를 팀원 전원이 공유해서 ubuntu 계정 사용 (소규모 팀)
+
+
+================================================================================
+  유용한 관리 명령어
+================================================================================
+
+# 서비스 상태 확인
+sudo systemctl status iotcoss-backend
+sudo systemctl status nginx
+sudo systemctl status postgresql
+sudo systemctl status redis-server
+sudo systemctl status mosquitto
+
+# Backend 로그 실시간 보기
+sudo journalctl -u iotcoss-backend -f
+
+# Nginx 에러 로그 보기
+sudo tail -f /var/log/nginx/error.log
+
+# Nginx 접속 로그 보기
+sudo tail -f /var/log/nginx/access.log
+
+# 디스크 용량 확인
+df -h
+
+# 메모리/CPU 확인
+htop
+
+# 포트 사용 현황
+sudo ss -tlnp
+
+
+================================================================================
+  개발 모드로 직접 실행 (디버깅용)
+================================================================================
+
+Backend를 systemd 대신 직접 실행하고 싶을 때:
+
+  # 서비스 먼저 중지
+  sudo systemctl stop iotcoss-backend
+
+  # 직접 실행 (로그가 터미널에 바로 출력됨)
+  cd /home/ubuntu/IoTCOSS_NEXCODE/Backend
+  source venv/bin/activate
+  uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # --reload: 코드 변경 시 자동 재시작 (개발 중 편리)
+  # 개발 끝나면 Ctrl+C 후 서비스 다시 시작:
+  sudo systemctl start iotcoss-backend
+
+Frontend를 개발 모드로 실행하고 싶을 때:
+
+  cd /home/ubuntu/IoTCOSS_NEXCODE/Frontend
+  npm run dev -- --host 0.0.0.0
+
+  # 브라우저: http://<EC2-IP>:5173
+  # HMR (Hot Module Replacement) 지원 → 코드 수정 즉시 반영
+  # 보안그룹에서 5173 포트가 열려있어야 함
+
+
+================================================================================
+  문제 해결 (Troubleshooting)
+================================================================================
+
+Q: 브라우저에서 접속이 안 돼요
+A: 1) EC2 보안그룹에서 80번 포트가 열려있는지 확인
+   2) sudo systemctl status nginx 로 Nginx 동작 확인
+   3) sudo nginx -t 로 설정 오류 확인
+
+Q: API 호출이 502 Bad Gateway 에요
+A: 1) sudo systemctl status iotcoss-backend 로 Backend 상태 확인
+   2) Backend가 죽어있으면: sudo systemctl restart iotcoss-backend
+   3) 로그 확인: sudo journalctl -u iotcoss-backend --since "5 min ago"
+
+Q: DB 연결 에러가 나요
+A: 1) sudo systemctl status postgresql 로 PostgreSQL 상태 확인
+   2) Backend/.env 의 DATABASE_URL 이 올바른지 확인
+   3) psql -U iotcoss -d iotcoss 로 DB 직접 접속 테스트
+
+Q: git pull 충돌이 나요
+A: 1) git stash (현재 변경 임시 저장)
+   2) git pull origin main
+   3) git stash pop (임시 저장 복원)
+   4) 충돌 파일 수동 해결 후 git add + commit
+
+Q: npm run build 실패 (메모리 부족)
+A: t3.micro는 메모리 1GB로 빌드 시 부족할 수 있음
+   # 스왑 파일 생성으로 해결:
+   sudo fallocate -l 2G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   # 영구 적용:
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+
+================================================================================
+  체크리스트 (순서대로 진행)
+================================================================================
+
+  [ ] EC2 인스턴스 생성 (Ubuntu, t3.small 이상)
+  [ ] 탄력적 IP 연결
+  [ ] 보안그룹 인바운드 규칙 설정
+  [ ] SSH 접속 확인
+  [ ] 시스템 패키지 설치 (STEP 3)
+  [ ] 코드 업로드 (git clone)
+  [ ] PostgreSQL DB/유저 생성 (STEP 5)
+  [ ] Backend 가상환경 + 의존성 설치 (STEP 6)
+  [ ] Backend .env 설정
+  [ ] Backend 테스트 실행 확인
+  [ ] Backend systemd 서비스 등록 (STEP 7)
+  [ ] Frontend npm install + build (STEP 8)
+  [ ] Nginx 설정 (STEP 9)
+  [ ] 브라우저에서 대시보드 접속 확인
+  [ ] (선택) SSL 인증서 발급 (STEP 10)
+  [ ] (선택) 팀원 SSH 계정 생성
+  [ ] 팀원 전원 SSH 접속 확인
