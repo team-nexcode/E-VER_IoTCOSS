@@ -40,8 +40,9 @@ export default function FloorPlan({ highlightedDeviceId, onSelectDevice }: Floor
           className="w-full h-full"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* 배경 */}
-          <rect x="0" y="0" width="900" height="495" rx="12" fill="#0c1222" />
+          {/* 배경 (클릭시 선택 해제) */}
+          <rect x="0" y="0" width="900" height="495" rx="12" fill="#0c1222"
+            className="cursor-pointer" onClick={() => onSelectDevice(null)} />
 
           {/* 외벽 */}
           <rect

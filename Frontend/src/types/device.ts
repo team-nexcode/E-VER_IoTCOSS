@@ -31,9 +31,18 @@ export interface PowerLog {
 
 export interface PowerSummary {
   totalPower: number;
-  totalEnergy: number;
+  monthlyEnergy: number;
+  yesterdayEnergy: number;
+  todayEnergy: number;
   activeDevices: number;
   totalDevices: number;
   avgTemperature: number;
   savingsPercent: number;
+  estimatedCost: number;
+  peakPower: number;
+}
+
+export interface DailyPowerPoint {
+  date: string;
+  power: number;
 }
