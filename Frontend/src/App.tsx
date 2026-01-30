@@ -6,6 +6,7 @@ import PowerAnalysis from './pages/PowerAnalysis';
 import Schedule from './pages/Schedule';
 import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
+import ApiLogs from './pages/ApiLogs';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/power" element={<PowerAnalysis />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/api-logs" element={<ApiLogs />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

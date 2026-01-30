@@ -17,9 +17,12 @@ from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
 from app.api.websocket import router as websocket_router
+from app.api.mobius import router as mobius_router
+from app.api.api_logs import router as api_logs_router
 
-# MQTT 서비스 import
+# 서비스 import
 from app.services.mqtt_service import mqtt_service
+from app.services.mobius_service import mobius_service
 
 settings = get_settings()
 
@@ -62,6 +65,9 @@ async def lifespan(app: FastAPI):
     # MQTT 연결 해제
     await mqtt_service.disconnect()
 
+    # Mobius HTTP 클라이언트 종료
+    await mobius_service.close()
+
     # DB 엔진 종료
     await engine.dispose()
     logger.info("서버 종료 완료")
@@ -92,6 +98,8 @@ app.include_router(devices_router)
 app.include_router(power_router)
 app.include_router(auth_router)
 app.include_router(websocket_router)
+app.include_router(mobius_router)
+app.include_router(api_logs_router)
 
 
 @app.get("/api/health", tags=["헬스체크"])

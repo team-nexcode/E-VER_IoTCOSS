@@ -3,6 +3,7 @@ IoTCOSS 백엔드 환경 설정 모듈
 pydantic-settings를 사용하여 .env 파일에서 환경 변수를 로드합니다.
 """
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -29,9 +30,22 @@ class Settings(BaseSettings):
     APP_NAME: str = "IoTCOSS API"
     DEBUG: bool = True
 
+    # Mobius (oneM2M) 설정
+    X_API_KEY: str = Field(default="", validation_alias="X-API-KEY")
+    X_AUTH_CUSTOM_LECTURE: str = Field(default="", validation_alias="X-AUTH-CUSTOM-LECTURE")
+    X_AUTH_CUSTOM_CREATOR: str = Field(default="", validation_alias="X-AUTH-CUSTOM-CREATOR")
+    mp_url: str = "https://onem2m.iotcoss.ac.kr"
+    cb: str = "Mobius"
+
+    @property
+    def mobius_base_url(self) -> str:
+        """Mobius CSE 베이스 URL"""
+        return f"{self.mp_url}/{self.cb}"
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
+        "populate_by_name": True,
     }
 
 

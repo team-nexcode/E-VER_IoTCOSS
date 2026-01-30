@@ -5,6 +5,7 @@ import {
   BarChart3,
   Clock,
   Bell,
+  FileText,
   Settings,
 } from 'lucide-react';
 
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/power', icon: BarChart3, label: '전력 분석' },
   { to: '/schedule', icon: Clock, label: '스케줄' },
   { to: '/alerts', icon: Bell, label: '알림' },
+  { to: '/api-logs', icon: FileText, label: 'API 로그' },
   { to: '/settings', icon: Settings, label: '설정' },
 ];
 
