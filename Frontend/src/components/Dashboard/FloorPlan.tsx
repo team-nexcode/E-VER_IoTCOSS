@@ -8,8 +8,8 @@ export default function FloorPlan() {
   const getDevice = (deviceId: number) => devices.find((d) => d.id === deviceId);
 
   return (
-    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6 relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+    <div className="h-full flex flex-col bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6 relative overflow-hidden">
+      <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
         <h3 className="text-base sm:text-lg font-semibold text-white">실시간 모니터링</h3>
         <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs">
           <div className="flex items-center gap-1.5">
@@ -27,8 +27,8 @@ export default function FloorPlan() {
         </div>
       </div>
 
-      {/* 집 구조도 컨테이너 */}
-      <div className="relative w-full" style={{ paddingBottom: '55%' }}>
+      {/* 집 구조도 컨테이너 - 남은 공간 채움 */}
+      <div className="relative flex-1 min-h-0">
         <div className="absolute inset-0 overflow-hidden">
           {/* SVG 집 구조도 (5개 방: 거실, 주방, 침실, 서재, 욕실) */}
           <svg

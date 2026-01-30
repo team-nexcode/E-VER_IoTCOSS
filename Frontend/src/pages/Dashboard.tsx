@@ -8,15 +8,15 @@ export default function Dashboard() {
   const onlineDevices = devices.filter((d) => d.isOnline).length;
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col gap-4">
       {/* 페이지 헤더 */}
-      <div>
+      <div className="flex-shrink-0">
         <h2 className="text-2xl font-bold text-white">대시보드</h2>
         <p className="text-sm text-gray-500 mt-1">전체 시스템 현황을 한눈에 확인하세요</p>
       </div>
 
       {/* 상태 카드 그리드 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3">
+      <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3">
         <StatusCard
           title="현재 총 전력"
           value={powerSummary.totalPower.toFixed(1)}
@@ -62,8 +62,10 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* 집 구조도 모니터링 */}
-      <FloorPlan />
+      {/* 집 구조도 모니터링 - 남은 공간 전체 사용 */}
+      <div className="flex-1 min-h-0">
+        <FloorPlan />
+      </div>
     </div>
   );
 }
