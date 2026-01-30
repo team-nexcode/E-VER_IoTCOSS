@@ -28,7 +28,7 @@ export default function Sidebar() {
     const ping = async () => {
       const start = performance.now();
       try {
-        const res = await fetch('http://localhost:8000/api/health');
+        const res = await fetch('/api/health');
         if (res.ok) {
           setResponseTime(Math.round(performance.now() - start));
           setStatus('online');

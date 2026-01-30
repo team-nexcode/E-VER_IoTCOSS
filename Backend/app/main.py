@@ -85,8 +85,11 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # React(Vite) 개발 서버
-        "http://localhost:3000",  # 대체 React 개발 서버
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://iotcoss.nexcode.kr",
+        "http://iotcoss.nexcode.kr:5173",
+        "https://iotcoss.nexcode.kr",
     ],
     allow_credentials=True,
     allow_methods=["*"],  # 모든 HTTP 메서드 허용
