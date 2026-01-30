@@ -1,0 +1,1236 @@
+{
+	"info": {
+		"_postman_id": "32598871-1348-423a-a729-2db9cdc22928",
+		"name": "Mobius_API_Release2(kor)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "6988795"
+	},
+	"item": [
+		{
+			"name": "CSEBase",
+			"item": [
+				{
+				"name": "cb 조회",
+				"request": {
+					"method": "GET",
+					"header": [
+					{
+						"key": "X-API-KEY",
+						"value": "",
+						"description": "발급받은 개인 API KEY"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					},
+					{
+						"key": "X-M2M-RI",
+						"value": ""
+					},
+					{
+						"key": "X-M2M-Origin",
+						"value": "SOrigin"
+					}
+					],
+					"url": {
+						"raw": "{{mp_url}}/{{cb}}?fu={{fu}}&lvl={{lvl}}&ofst={{ofst}}&lim={{lim}}&ty={{ty1}}&ty={{ty2}}&ty={{ty3}}",
+						"host": ["{{mp_url}}"],
+						"path": ["{{cb}}"],
+						"query": [
+							{
+							"key": "fu",
+							"value": "{{fu}}",
+							"description": "filterUsage: 1=URI 목록(Discovery), 2=조건부 조회",
+							"disabled": true
+							},
+							{
+							"key": "lvl",
+							"value": "{{lvl}}",
+							"description": "탐색 깊이(0=타깃, 1=자식, 2=손자…)",
+							"disabled": true
+							},
+							{
+							"key": "ofst",
+							"value": "{{ofst}}",
+							"description": "offset: 결과에서 앞의 N개 건너뜀",
+							"disabled": true
+							},
+							{
+							"key": "lim",
+							"value": "{{lim}}",
+							"description": "limit: 응답 최대 개수",
+							"disabled": true
+							},
+							{
+							"key": "ty",
+							"value": "{{ty1}}",
+							"description": "리소스 타입(2=AE, 3=CNT, 4=CIN) — 다중 선택 시 ty를 여러 번 추가",
+							"disabled": true
+							},
+							{
+							"key": "ty",
+							"value": "{{ty2}}",
+							"description": "추가 타입(선택)",
+							"disabled": true
+							},
+							{
+							"key": "ty",
+							"value": "{{ty3}}",
+							"description": "추가 타입(선택)",
+							"disabled": true
+							}
+						]
+					}
+				},
+				"response": []
+				}
+			]
+		},
+		{
+			"name": "AE",
+			"item": [
+				{
+					"name": "ae 생성",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"pm.environment.set(\"aei\", jsonData[\"m2m:ae\"].aei);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=2"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"m2m:ae\" : {\n\t\t\"rn\": \"ae_name\",\n\t\t\"api\": \"Nae_name\",\n\t\t\"rr\": true,\n\t\t\"lbl\": [\"과제명\"]\n\t}\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ae 조회",
+					"request": {
+						"method": "GET",
+						"header": [
+						{
+							"key": "X-API-KEY",
+							"value": "",
+							"description": "발급받은 개인 API KEY"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-LECTURE",
+							"value": "",
+							"description": "수업ID"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-CREATOR",
+							"value": "",
+							"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+						},
+						{
+							"key": "Accept",
+							"value": "application/json"
+						},
+						{
+							"key": "X-M2M-RI",
+							"value": ""
+						},
+						{
+							"key": "X-M2M-Origin",
+							"value": "S"
+						}
+						],
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]?fu={{fu}}&lvl={{lvl}}&ofst={{ofst}}&lim={{lim}}&ty={{ty1}}&ty={{ty2}}&ty={{ty3}}",
+							"host": ["{{mp_url}}"],
+							"path": ["{{cb}}", "[ae_rn]"],
+							"query": [
+								{
+								"key": "fu",
+								"value": "{{fu}}",
+								"description": "filterUsage: 1=URI 목록(Discovery), 2=조건부 조회",
+								"disabled": true
+								},
+								{
+								"key": "lvl",
+								"value": "{{lvl}}",
+								"description": "탐색 깊이(0=타깃, 1=자식, 2=손자…)",
+								"disabled": true
+								},
+								{
+								"key": "ofst",
+								"value": "{{ofst}}",
+								"description": "offset: 결과에서 앞의 N개 건너뜀",
+								"disabled": true
+								},
+								{
+								"key": "lim",
+								"value": "{{lim}}",
+								"description": "limit: 응답 최대 개수",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty1}}",
+								"description": "리소스 타입(2=AE, 3=CNT, 4=CIN) — 다중 선택 시 ty를 여러 번 추가",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty2}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty3}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ae 변경",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=2"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:ae\": {\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ae 삭제",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Container",
+			"item": [
+				{
+					"name": "cnt 생성",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=3"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:cnt\": {\n    \"rn\": \"con_name\",\n    \"mbs\": 16384,\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cnt 조회",
+					"request": {
+						"method": "GET",
+						"header": [
+						{
+							"key": "X-API-KEY",
+							"value": "",
+							"description": "발급받은 개인 API KEY"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-LECTURE",
+							"value": "",
+							"description": "수업ID"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-CREATOR",
+							"value": "",
+							"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+						},
+						{
+							"key": "Accept",
+							"value": "application/json"
+						},
+						{
+							"key": "X-M2M-RI",
+							"value": ""
+						},
+						{
+							"key": "X-M2M-Origin",
+							"value": "S"
+						}
+						],
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]?fu={{fu}}&lvl={{lvl}}&ofst={{ofst}}&lim={{lim}}&ty={{ty1}}&ty={{ty2}}&ty={{ty3}}",
+							"host": ["{{mp_url}}"],
+							"path": ["{{cb}}", "[ae_rn]", "[cnt_rn]"],
+							"query": [
+								{
+								"key": "fu",
+								"value": "{{fu}}",
+								"description": "filterUsage: 1=URI 목록(Discovery), 2=조건부 조회",
+								"disabled": true
+								},
+								{
+								"key": "lvl",
+								"value": "{{lvl}}",
+								"description": "탐색 깊이(0=타깃, 1=자식, 2=손자…)",
+								"disabled": true
+								},
+								{
+								"key": "ofst",
+								"value": "{{ofst}}",
+								"description": "offset: 결과에서 앞의 N개 건너뜀",
+								"disabled": true
+								},
+								{
+								"key": "lim",
+								"value": "{{lim}}",
+								"description": "limit: 응답 최대 개수",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty1}}",
+								"description": "리소스 타입(2=AE, 3=CNT, 4=CIN) — 다중 선택 시 ty를 여러 번 추가",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty2}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty3}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cnt 변경",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=3"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:cnt\": {\n    \"mbs\": 16384,\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cnt 삭제",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "ContentInstance",
+			"item": [
+				{
+					"name": "cin 생성",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=4"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:cin\": {\n    \"con\": \"on\",\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cin 조회",
+					"request": {
+						"method": "GET",
+						"header": [
+						{
+							"key": "X-API-KEY",
+							"value": "",
+							"description": "발급받은 개인 API KEY"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-LECTURE",
+							"value": "",
+							"description": "수업ID"
+						},
+						{
+							"key": "X-AUTH-CUSTOM-CREATOR",
+							"value": "",
+							"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+						},
+						{
+							"key": "Accept",
+							"value": "application/json"
+						},
+						{
+							"key": "X-M2M-RI",
+							"value": ""
+						},
+						{
+							"key": "X-M2M-Origin",
+							"value": "S"
+						}
+						],
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]/[cin_rn]?fu={{fu}}&lvl={{lvl}}&ofst={{ofst}}&lim={{lim}}&ty={{ty1}}&ty={{ty2}}&ty={{ty3}}",
+							"host": ["{{mp_url}}"],
+							"path": ["{{cb}}", "[ae_rn]", "[cnt_rn]", "[cin_rn]"],
+							"query": [
+								{
+								"key": "fu",
+								"value": "{{fu}}",
+								"description": "filterUsage: 1=URI 목록(Discovery), 2=조건부 조회",
+								"disabled": true
+								},
+								{
+								"key": "lvl",
+								"value": "{{lvl}}",
+								"description": "탐색 깊이(0=타깃, 1=자식, 2=손자…)",
+								"disabled": true
+								},
+								{
+								"key": "ofst",
+								"value": "{{ofst}}",
+								"description": "offset: 결과에서 앞의 N개 건너뜀",
+								"disabled": true
+								},
+								{
+								"key": "lim",
+								"value": "{{lim}}",
+								"description": "limit: 응답 최대 개수",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty1}}",
+								"description": "리소스 타입(2=AE, 3=CNT, 4=CIN) — 다중 선택 시 ty를 여러 번 추가",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty2}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								},
+								{
+								"key": "ty",
+								"value": "{{ty3}}",
+								"description": "추가 타입(선택)",
+								"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cin 삭제",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]/[cin_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]",
+								"[cin_rn]"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Subscription",
+			"item": [
+				{
+					"name": "sub 생성",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=23"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:sub\": {\n    \"rn\": \"sub_rn\",\n    \"lbl\": [\"과제명\"],\n    \"enc\": {\n      \"net\": [\n        3\n      ]\n    },\n    \"nu\": [\n      \"//keti.re.kr/Mobius/Mobius/\"\n    ],\n    \"exc\": 10\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sub 조회",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							}
+						],
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]/[sub_rn]?rcn=1",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]",
+								"[sub_rn]"
+							],
+							"query": [
+								{
+									"key": "rcn",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sub 변경",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=23"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:sub\": {\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]/[sub_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]",
+								"[sub_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sub 삭제",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[cnt_rn]/[sub_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[cnt_rn]",
+								"[sub_rn]"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Group",
+			"item": [
+				{
+					"name": "grp 생성",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=9"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:grp\": {\n    \"rn\": \"grp_rn\",\n    \"lbl\": [\"과제명\"],\n    \"mid\": [\n      \"Mobius/ae_test/cnt_test3/4-20170717101658000xxvX\",\n      \"Mobius/ae_test/cnt_test3/4-201707171016573184FnI\"\n    ],\n    \"mnm\": 10\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "grp 조회",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S20170717074825768bp2l"
+							}
+						],
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[grp_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[grp_rn]"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "grp 변경",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "S"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json;ty=9"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"m2m:grp\": {\n    \"mnm\": 100,\n    \"lbl\": [\"과제명\"]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[grp_rn]?rcn=0",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[grp_rn]"
+							],
+							"query": [
+								{
+									"key": "rcn",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "grp 삭제",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "",
+								"description": "발급받은 개인 API KEY"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-LECTURE",
+								"value": "",
+								"description": "수업ID"
+							},
+							{
+								"key": "X-AUTH-CUSTOM-CREATOR",
+								"value": "",
+								"description": "학생은 본인의 식별코드(학교코드 + 학번) / 교수자는 로그인ID"
+							},
+							{
+								"key": "Accept",
+								"value": "application/xml"
+							},
+							{
+								"key": "X-M2M-RI",
+								"value": ""
+							},
+							{
+								"key": "X-M2M-Origin",
+								"value": "SOrigin"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{mp_url}}/{{cb}}/[ae_rn]/[grp_rn]",
+							"host": [
+								"{{mp_url}}"
+							],
+							"path": [
+								"{{cb}}",
+								"[ae_rn]",
+								"[grp_rn]"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
