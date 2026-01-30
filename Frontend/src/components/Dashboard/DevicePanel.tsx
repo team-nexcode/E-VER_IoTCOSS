@@ -1,5 +1,6 @@
 import { Zap, Thermometer, Power, Wifi, WifiOff } from 'lucide-react';
 import { useDeviceStore } from '../../store/deviceStore';
+import PowerChart from './PowerChart';
 
 interface DevicePanelProps {
   selectedDeviceId: number | null;
@@ -9,12 +10,22 @@ interface DevicePanelProps {
 export default function DevicePanel({ selectedDeviceId, onSelectDevice }: DevicePanelProps) {
   const devices = useDeviceStore((s) => s.devices);
   const toggleDevice = useDeviceStore((s) => s.toggleDevice);
+  const onlineCount = devices.filter((d) => d.isOnline).length;
 
   return (
     <div className="h-full flex flex-col bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
       {/* 헤더 */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800">
-        <h3 className="text-sm font-semibold text-white">디바이스 목록</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">디바이스 목록</h3>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-[11px] text-gray-400">
+              온라인 <span className="text-green-400 font-semibold">{onlineCount}</span>
+              <span className="text-gray-600">/{devices.length}</span>
+            </span>
+          </div>
+        </div>
         <p className="text-[10px] text-gray-500 mt-0.5">클릭하여 구조도에서 위치 확인</p>
       </div>
 
@@ -89,6 +100,11 @@ export default function DevicePanel({ selectedDeviceId, onSelectDevice }: Device
             </div>
           );
         })}
+      </div>
+
+      {/* 하단: 일별 전력량 차트 */}
+      <div className="flex-shrink-0 h-44 border-t border-gray-800">
+        <PowerChart selectedDeviceId={selectedDeviceId} />
       </div>
     </div>
   );

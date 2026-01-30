@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Device, OutletPosition, PowerSummary } from '../types/device';
+import type { Device, OutletPosition, PowerSummary, DailyPowerPoint } from '../types/device';
 
 // 더미 디바이스 데이터 (5개)
 const mockDevices: Device[] = [
@@ -74,11 +74,72 @@ const mockOutletPositions: OutletPosition[] = [
   { id: 5, deviceId: 5, x: 88, y: 45, room: '욕실' },
 ];
 
+// 일별 전력량 더미 데이터 (최근 7일)
+const mockDailyPowerTotal: DailyPowerPoint[] = [
+  { date: '1/24', power: 14.2 },
+  { date: '1/25', power: 16.8 },
+  { date: '1/26', power: 12.5 },
+  { date: '1/27', power: 15.2 },
+  { date: '1/28', power: 11.9 },
+  { date: '1/29', power: 13.7 },
+  { date: '1/30', power: 8.7 },
+];
+
+const mockDailyPowerByDevice: Record<number, DailyPowerPoint[]> = {
+  1: [
+    { date: '1/24', power: 2.8 },
+    { date: '1/25', power: 3.1 },
+    { date: '1/26', power: 2.4 },
+    { date: '1/27', power: 3.0 },
+    { date: '1/28', power: 2.2 },
+    { date: '1/29', power: 2.7 },
+    { date: '1/30', power: 1.5 },
+  ],
+  2: [
+    { date: '1/24', power: 1.8 },
+    { date: '1/25', power: 2.5 },
+    { date: '1/26', power: 1.2 },
+    { date: '1/27', power: 1.9 },
+    { date: '1/28', power: 1.5 },
+    { date: '1/29', power: 1.1 },
+    { date: '1/30', power: 0.8 },
+  ],
+  3: [
+    { date: '1/24', power: 5.1 },
+    { date: '1/25', power: 6.3 },
+    { date: '1/26', power: 4.8 },
+    { date: '1/27', power: 5.5 },
+    { date: '1/28', power: 4.2 },
+    { date: '1/29', power: 5.8 },
+    { date: '1/30', power: 3.6 },
+  ],
+  4: [
+    { date: '1/24', power: 2.3 },
+    { date: '1/25', power: 2.7 },
+    { date: '1/26', power: 2.1 },
+    { date: '1/27', power: 2.8 },
+    { date: '1/28', power: 2.0 },
+    { date: '1/29', power: 2.1 },
+    { date: '1/30', power: 1.3 },
+  ],
+  5: [
+    { date: '1/24', power: 2.2 },
+    { date: '1/25', power: 2.2 },
+    { date: '1/26', power: 2.0 },
+    { date: '1/27', power: 2.0 },
+    { date: '1/28', power: 2.0 },
+    { date: '1/29', power: 2.0 },
+    { date: '1/30', power: 1.5 },
+  ],
+};
+
 interface DeviceStore {
   devices: Device[];
   outletPositions: OutletPosition[];
   selectedDeviceId: number | null;
   powerSummary: PowerSummary;
+  dailyPowerTotal: DailyPowerPoint[];
+  dailyPowerByDevice: Record<number, DailyPowerPoint[]>;
   setDevices: (devices: Device[]) => void;
   toggleDevice: (id: number) => void;
   selectDevice: (id: number | null) => void;
@@ -87,12 +148,16 @@ interface DeviceStore {
 
 const calcSummary = (devices: Device[]): PowerSummary => ({
   totalPower: devices.reduce((sum, d) => sum + d.currentPower, 0),
-  totalEnergy: 15.8,
+  monthlyEnergy: 245.8,
+  yesterdayEnergy: 13.7,
+  todayEnergy: 8.7,
   activeDevices: devices.filter((d) => d.isActive).length,
   totalDevices: devices.length,
   avgTemperature:
     devices.reduce((sum, d) => sum + d.temperature, 0) / devices.length,
   savingsPercent: 18.5,
+  estimatedCost: 32400,
+  peakPower: 2520.7,
 });
 
 export const useDeviceStore = create<DeviceStore>((set) => ({
@@ -100,6 +165,8 @@ export const useDeviceStore = create<DeviceStore>((set) => ({
   outletPositions: mockOutletPositions,
   selectedDeviceId: null,
   powerSummary: calcSummary(mockDevices),
+  dailyPowerTotal: mockDailyPowerTotal,
+  dailyPowerByDevice: mockDailyPowerByDevice,
 
   setDevices: (devices) =>
     set({ devices, powerSummary: calcSummary(devices) }),

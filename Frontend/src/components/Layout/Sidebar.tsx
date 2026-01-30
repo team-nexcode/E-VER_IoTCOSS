@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -20,6 +21,31 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const [responseTime, setResponseTime] = useState<number | null>(null);
+  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    const ping = async () => {
+      const start = performance.now();
+      try {
+        const res = await fetch('http://localhost:8000/api/health');
+        if (res.ok) {
+          setResponseTime(Math.round(performance.now() - start));
+          setStatus('online');
+        } else {
+          setStatus('offline');
+          setResponseTime(null);
+        }
+      } catch {
+        setStatus('offline');
+        setResponseTime(null);
+      }
+    };
+    ping();
+    const interval = setInterval(ping, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <aside className="fixed left-0 top-[60px] bottom-0 w-[250px] bg-[#111827] border-r border-gray-800 flex flex-col z-40">
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -46,11 +72,23 @@ export default function Sidebar() {
       <div className="p-4 border-t border-gray-800">
         <div className="bg-gray-800/50 rounded-xl p-3">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <div className={`w-2 h-2 rounded-full ${
+              status === 'online' ? 'bg-green-500 animate-pulse'
+              : status === 'offline' ? 'bg-red-500'
+              : 'bg-yellow-500 animate-pulse'
+            }`} />
             <span className="text-xs text-gray-400">시스템 상태</span>
           </div>
-          <p className="text-xs text-green-400 font-medium">정상 운영 중</p>
-          <p className="text-[10px] text-gray-600 mt-1">서버 응답: 12ms</p>
+          <p className={`text-xs font-medium ${
+            status === 'online' ? 'text-green-400'
+            : status === 'offline' ? 'text-red-400'
+            : 'text-yellow-400'
+          }`}>
+            {status === 'online' ? '정상 운영 중' : status === 'offline' ? '서버 연결 실패' : '연결 중...'}
+          </p>
+          <p className="text-[10px] text-gray-600 mt-1">
+            서버 응답: {status === 'online' && responseTime !== null ? `${responseTime}ms` : status === 'offline' ? '—' : '측정 중...'}
+          </p>
         </div>
       </div>
     </aside>
