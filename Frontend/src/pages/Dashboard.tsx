@@ -11,7 +11,7 @@ export default function Dashboard() {
   const onlineDevices = devices.filter((d) => d.isOnline).length;
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="h-[calc(100vh-60px-2rem)] flex flex-col gap-4">
       {/* 상단: 요약 카드 */}
       <div className="flex-shrink-0 grid grid-cols-3 xl:grid-cols-6 gap-3">
         <StatusCard

@@ -37,8 +37,8 @@ export default function StatusCard({ title, value, unit, icon, trend, color }: S
         </div>
       </div>
       <div className="flex items-end gap-1.5">
-        <span className="text-xl sm:text-2xl 2xl:text-3xl font-bold text-white truncate">{value}</span>
-        {unit && <span className="text-xs sm:text-sm text-gray-500 mb-0.5 flex-shrink-0">{unit}</span>}
+        <span className="text-lg sm:text-xl font-bold text-white truncate">{value}</span>
+        {unit && <span className="text-[10px] sm:text-xs text-gray-500 mb-0.5 flex-shrink-0">{unit}</span>}
       </div>
       {trend && (
         <div className="mt-1.5 flex items-center gap-1">
