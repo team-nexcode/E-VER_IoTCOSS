@@ -1,70 +1,26 @@
-import { Zap, Plug, Thermometer, TrendingDown, Activity, BatteryCharging } from 'lucide-react';
-import StatusCard from '../components/Dashboard/StatusCard';
+import { useState } from 'react';
 import FloorPlan from '../components/Dashboard/FloorPlan';
-import { useDeviceStore } from '../store/deviceStore';
+import DevicePanel from '../components/Dashboard/DevicePanel';
 
 export default function Dashboard() {
-  const { powerSummary, devices } = useDeviceStore();
-  const onlineDevices = devices.filter((d) => d.isOnline).length;
+  const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
 
   return (
-    <div className="h-full flex flex-col gap-4">
-      {/* 페이지 헤더 */}
-      <div className="flex-shrink-0">
-        <h2 className="text-2xl font-bold text-white">대시보드</h2>
-        <p className="text-sm text-gray-500 mt-1">전체 시스템 현황을 한눈에 확인하세요</p>
-      </div>
-
-      {/* 상태 카드 그리드 */}
-      <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3">
-        <StatusCard
-          title="현재 총 전력"
-          value={powerSummary.totalPower.toFixed(1)}
-          unit="W"
-          icon={<Zap className="w-5 h-5" />}
-          color="yellow"
-          trend={{ value: -5.2, isPositive: true }}
-        />
-        <StatusCard
-          title="오늘 전력량"
-          value={powerSummary.totalEnergy.toFixed(1)}
-          unit="kWh"
-          icon={<BatteryCharging className="w-5 h-5" />}
-          color="blue"
-          trend={{ value: -8.1, isPositive: true }}
-        />
-        <StatusCard
-          title="활성 디바이스"
-          value={`${powerSummary.activeDevices}/${powerSummary.totalDevices}`}
-          icon={<Plug className="w-5 h-5" />}
-          color="green"
-        />
-        <StatusCard
-          title="온라인"
-          value={`${onlineDevices}/${powerSummary.totalDevices}`}
-          icon={<Activity className="w-5 h-5" />}
-          color="purple"
-        />
-        <StatusCard
-          title="평균 온도"
-          value={powerSummary.avgTemperature.toFixed(1)}
-          unit="°C"
-          icon={<Thermometer className="w-5 h-5" />}
-          color="red"
-        />
-        <StatusCard
-          title="절감률"
-          value={powerSummary.savingsPercent.toFixed(1)}
-          unit="%"
-          icon={<TrendingDown className="w-5 h-5" />}
-          color="green"
-          trend={{ value: 3.2, isPositive: true }}
+    <div className="h-full flex gap-4">
+      {/* 좌측: 집 구조도 */}
+      <div className="flex-1 min-w-0">
+        <FloorPlan
+          highlightedDeviceId={selectedDeviceId}
+          onSelectDevice={setSelectedDeviceId}
         />
       </div>
 
-      {/* 집 구조도 모니터링 - 남은 공간 전체 사용 */}
-      <div className="flex-1 min-h-0">
-        <FloorPlan />
+      {/* 우측: 디바이스 패널 */}
+      <div className="w-80 flex-shrink-0">
+        <DevicePanel
+          selectedDeviceId={selectedDeviceId}
+          onSelectDevice={setSelectedDeviceId}
+        />
       </div>
     </div>
   );
