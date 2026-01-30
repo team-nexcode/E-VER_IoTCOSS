@@ -9,55 +9,31 @@ interface DevicePanelProps {
 export default function DevicePanel({ selectedDeviceId, onSelectDevice }: DevicePanelProps) {
   const devices = useDeviceStore((s) => s.devices);
   const toggleDevice = useDeviceStore((s) => s.toggleDevice);
-  const powerSummary = useDeviceStore((s) => s.powerSummary);
 
   return (
     <div className="h-full flex flex-col bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
-      {/* 요약 헤더 */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-800">
-        <h3 className="text-sm font-semibold text-white mb-3">시스템 요약</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-yellow-600/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">총 전력</div>
-            <div className="text-sm font-bold text-yellow-400">{powerSummary.totalPower.toFixed(1)}<span className="text-[10px] text-gray-500 ml-0.5">W</span></div>
-          </div>
-          <div className="bg-blue-600/10 border border-blue-500/20 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">전력량</div>
-            <div className="text-sm font-bold text-blue-400">{powerSummary.totalEnergy.toFixed(1)}<span className="text-[10px] text-gray-500 ml-0.5">kWh</span></div>
-          </div>
-          <div className="bg-green-600/10 border border-green-500/20 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">활성</div>
-            <div className="text-sm font-bold text-green-400">{powerSummary.activeDevices}/{powerSummary.totalDevices}</div>
-          </div>
-          <div className="bg-red-600/10 border border-red-500/20 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">평균 온도</div>
-            <div className="text-sm font-bold text-red-400">{powerSummary.avgTemperature.toFixed(1)}<span className="text-[10px] text-gray-500 ml-0.5">°C</span></div>
-          </div>
-        </div>
-      </div>
-
-      {/* 디바이스 탭 헤더 */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-gray-800">
+      {/* 헤더 */}
+      <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800">
         <h3 className="text-sm font-semibold text-white">디바이스 목록</h3>
         <p className="text-[10px] text-gray-500 mt-0.5">클릭하여 구조도에서 위치 확인</p>
       </div>
 
       {/* 디바이스 카드 목록 (스크롤) */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         {devices.map((device) => {
           const isSelected = selectedDeviceId === device.id;
           return (
             <div
               key={device.id}
               onClick={() => onSelectDevice(isSelected ? null : device.id)}
-              className={`rounded-xl border p-3 cursor-pointer transition-all duration-200 ${
+              className={`rounded-xl border px-4 py-4 cursor-pointer transition-all duration-200 ${
                 isSelected
                   ? 'bg-sky-500/10 border-sky-500/40 shadow-lg shadow-sky-500/5'
                   : 'bg-gray-800/40 border-gray-700/50 hover:bg-gray-800/70 hover:border-gray-600'
               }`}
             >
               {/* 디바이스 헤더 */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   {device.isOnline ? (
                     <Wifi className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
@@ -74,7 +50,7 @@ export default function DevicePanel({ selectedDeviceId, onSelectDevice }: Device
               </div>
 
               {/* 전력 / 온도 */}
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex items-center gap-4 mb-3">
                 <div className="flex items-center gap-1.5">
                   <Zap className="w-3.5 h-3.5 text-yellow-400" />
                   <span className={`text-xs font-semibold ${device.currentPower > 500 ? 'text-red-400' : device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500'}`}>
