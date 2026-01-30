@@ -45,7 +45,7 @@ export default function PowerChart({ selectedDeviceId }: PowerChartProps) {
               }}
               labelStyle={{ color: '#94a3b8' }}
               itemStyle={{ color: '#e2e8f0' }}
-              formatter={(value: number) => [`${value} kWh`, '전력량']}
+              formatter={(value) => [`${value} kWh`, '전력량']}
             />
             <Bar
               dataKey="power"
