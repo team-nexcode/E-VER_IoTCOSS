@@ -50,13 +50,37 @@ else
     log "git pull 완료"
 fi
 
-# ─── 2. Backend 의존성 설치 ───
+# ─── 2. Backend .env 확인 ───
+if [ ! -f "${BACKEND_DIR}/.env" ]; then
+    warn ".env 파일이 없습니다. 기본 템플릿 생성..."
+    cat > "${BACKEND_DIR}/.env" << 'ENVEOF'
+# IoTCOSS 백엔드 환경 변수 설정
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/iotcoss
+REDIS_URL=redis://localhost:6379
+MQTT_BROKER=localhost
+MQTT_PORT=1883
+SECRET_KEY=your-secret-key-change-in-production
+
+X-API-KEY=tBaM6UH8VnlS9bIi4zdEwJAjLdT9vaQL
+X-AUTH-CUSTOM-LECTURE=LCT_20250007
+X-AUTH-CUSTOM-CREATOR=dgu2025112456
+
+mp_url=https://onem2m.iotcoss.ac.kr
+cb=Mobius
+ENVEOF
+    log ".env 파일 생성 완료 (필요시 비밀번호 수정)"
+else
+    log ".env 파일 확인 완료"
+fi
+
+# ─── 3. Backend 가상환경 및 의존성 설치 ───
 warn "Backend 의존성 확인..."
 cd "${BACKEND_DIR}"
 
 if [ ! -d "venv" ]; then
     warn "가상환경 생성 중..."
     python3 -m venv venv
+    log "가상환경 생성 완료"
 fi
 
 source venv/bin/activate
@@ -64,14 +88,14 @@ pip install -q -r requirements.txt
 deactivate
 log "Backend 의존성 설치 완료"
 
-# ─── 3. Frontend 빌드 ───
+# ─── 4. Frontend 빌드 ───
 warn "Frontend 빌드 중..."
 cd "${FRONTEND_DIR}"
 npm install --silent
 npm run build
 log "Frontend 빌드 완료"
 
-# ─── 4. 서비스 재시작 ───
+# ─── 5. 서비스 재시작 ───
 warn "서비스 재시작 중..."
 
 sudo systemctl restart iotcoss-backend 2>/dev/null && \
@@ -82,7 +106,7 @@ sudo systemctl restart nginx 2>/dev/null && \
     log "Nginx 재시작 완료" || \
     warn "Nginx가 설치되지 않음"
 
-# ─── 5. 상태 확인 ───
+# ─── 6. 상태 확인 ───
 echo ""
 echo "========================================"
 echo "  배포 완료 - 서비스 상태"

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { FileText, ChevronDown, ChevronRight, Trash2, RefreshCw, Search } from 'lucide-react';
 import type { ApiLog, ApiLogListResponse } from '../types/apiLog';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
