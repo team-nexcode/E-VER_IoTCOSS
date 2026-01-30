@@ -4,6 +4,7 @@ IoTCOSS 백엔드 FastAPI 앱 진입점
 """
 
 import logging
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -115,4 +116,5 @@ async def health_check():
         "status": "healthy",
         "service": settings.APP_NAME,
         "mqtt_connected": mqtt_service.is_connected,
+        "server_time": datetime.now(timezone.utc).isoformat(),
     }

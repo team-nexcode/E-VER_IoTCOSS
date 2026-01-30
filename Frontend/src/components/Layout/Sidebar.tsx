@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -23,26 +23,57 @@ const navItems = [
 export default function Sidebar() {
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [displayTime, setDisplayTime] = useState<string>('--:--:--');
+  const [displayDate, setDisplayDate] = useState<string>('');
+  const serverOffsetRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const ping = async () => {
-      const start = performance.now();
-      try {
-        const res = await fetch('/api/health');
-        if (res.ok) {
-          setResponseTime(Math.round(performance.now() - start));
-          setStatus('online');
-        } else {
-          setStatus('offline');
-          setResponseTime(null);
-        }
-      } catch {
+  const syncTime = useCallback(async () => {
+    const start = performance.now();
+    try {
+      const res = await fetch('/api/health');
+      const elapsed = performance.now() - start;
+      if (res.ok) {
+        const data = await res.json();
+        setResponseTime(Math.round(elapsed));
+        setStatus('online');
+        // 서버 시간과 로컬 시간의 차이 계산 (서버 기준으로 보정)
+        const serverMs = new Date(data.server_time).getTime();
+        const localMs = Date.now();
+        serverOffsetRef.current = serverMs - localMs;
+      } else {
         setStatus('offline');
         setResponseTime(null);
       }
+    } catch {
+      setStatus('offline');
+      setResponseTime(null);
+    }
+  }, []);
+
+  // 서버 동기화: 10초마다
+  useEffect(() => {
+    syncTime();
+    const interval = setInterval(syncTime, 10000);
+    return () => clearInterval(interval);
+  }, [syncTime]);
+
+  // 시계 표시: 1초마다
+  useEffect(() => {
+    const tick = () => {
+      if (serverOffsetRef.current === null) return;
+      const now = new Date(Date.now() + serverOffsetRef.current);
+      setDisplayTime(
+        now.toLocaleTimeString('ko-KR', { hour12: false, timeZone: 'Asia/Seoul' })
+      );
+      setDisplayDate(
+        now.toLocaleDateString('ko-KR', {
+          year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+          timeZone: 'Asia/Seoul',
+        })
+      );
     };
-    ping();
-    const interval = setInterval(ping, 10000);
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -68,8 +99,26 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* 하단: 시스템 상태 */}
-      <div className="p-4 border-t border-gray-800">
+      {/* 하단 */}
+      <div className="p-4 border-t border-gray-800 space-y-3">
+        {/* 서버 동기화 시계 */}
+        <div className="bg-gray-800/50 rounded-xl p-3 text-center">
+          {status === 'offline' ? (
+            <>
+              <p className="text-sm font-mono font-bold text-red-400">통신 오류</p>
+              <p className="text-[10px] text-red-500/70 mt-1">서버 연결 실패</p>
+            </>
+          ) : serverOffsetRef.current !== null ? (
+            <>
+              <p className="text-lg font-mono font-bold text-white tracking-wider">{displayTime}</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">{displayDate}</p>
+            </>
+          ) : (
+            <p className="text-sm font-mono text-yellow-400">동기화 중...</p>
+          )}
+        </div>
+
+        {/* 시스템 상태 */}
         <div className="bg-gray-800/50 rounded-xl p-3">
           <div className="flex items-center gap-2 mb-2">
             <div className={`w-2 h-2 rounded-full ${
