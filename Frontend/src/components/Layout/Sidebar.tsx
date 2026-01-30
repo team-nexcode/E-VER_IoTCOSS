@@ -63,7 +63,7 @@ export default function Sidebar() {
       if (serverOffsetRef.current === null) return;
       const now = new Date(Date.now() + serverOffsetRef.current);
       setDisplayTime(
-        now.toLocaleTimeString('ko-KR', { hour12: false, timeZone: 'Asia/Seoul' })
+        now.toLocaleTimeString('ko-KR', { hour12: true, timeZone: 'Asia/Seoul' })
       );
       setDisplayDate(
         now.toLocaleDateString('ko-KR', {
@@ -79,14 +79,14 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-[60px] bottom-0 w-[250px] bg-[#111827] border-r border-gray-800 flex flex-col z-40">
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-4 px-3 space-y-2 overflow-y-auto">
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              `flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                 isActive
                   ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
