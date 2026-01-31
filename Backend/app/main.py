@@ -22,6 +22,7 @@ from app.api.websocket import router as websocket_router, broadcast_mqtt_message
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
+from app.api.device_mac import router as device_mac_router
 
 # 서비스 import
 from app.services.mqtt_service import mqtt_service
@@ -77,6 +78,24 @@ async def lifespan(app: FastAPI):
                         "subscribe_filter": settings.MQTT_TOPIC,
                         "payload": payload,
                     }, ensure_ascii=False)
+
+                    # payload에서 ct(생성시간) 필드 추출
+                    parsed_ts = None
+                    try:
+                        data = payload if isinstance(payload, dict) else json.loads(payload)
+                        ct = None
+                        # oneM2M 구조: 최상위 ct 또는 m2m:sgn > nev > rep > m2m:cin > ct
+                        if "ct" in data:
+                            ct = data["ct"]
+                        elif "m2m:sgn" in data:
+                            sgn = data["m2m:sgn"]
+                            cin = (sgn.get("nev", {}).get("rep", {}).get("m2m:cin", {}))
+                            ct = cin.get("ct")
+                        if ct:
+                            parsed_ts = datetime.strptime(ct, "%Y%m%dT%H%M%S")
+                    except Exception:
+                        parsed_ts = None
+
                     async with async_session() as session:
                         log_entry = SystemLog(
                             type="MESSAGE",
@@ -85,6 +104,8 @@ async def lifespan(app: FastAPI):
                             message=f"토픽: {topic}",
                             detail=detail,
                         )
+                        if parsed_ts:
+                            log_entry.timestamp = parsed_ts
                         session.add(log_entry)
                         await session.commit()
                 except Exception as e:
@@ -147,6 +168,7 @@ app.include_router(websocket_router)
 app.include_router(mobius_router)
 app.include_router(api_logs_router)
 app.include_router(system_logs_router)
+app.include_router(device_mac_router)
 
 
 @app.get("/api/health", tags=["헬스체크"])
