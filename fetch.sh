@@ -57,8 +57,8 @@ if [ ! -f "${BACKEND_DIR}/.env" ]; then
 # IoTCOSS 백엔드 환경 변수 설정
 DATABASE_URL=postgresql+asyncpg://postgres:[DB_PASSWORD]@localhost:5432/iotcoss
 REDIS_URL=redis://localhost:6379
-MQTT_BROKER=localhost
-MQTT_PORT=1883
+MQTT_BROKER=onem2m.iotcoss.ac.kr
+MQTT_PORT=11883
 SECRET_KEY=[SECRET_KEY]
 
 X-API-KEY=[MOBIUS_API_KEY]
@@ -71,6 +71,12 @@ ENVEOF
     log ".env 파일 생성 완료 (필요시 비밀번호 수정)"
 else
     log ".env 파일 확인 완료"
+    # MQTT 브로커 설정이 localhost면 실제 브로커로 업데이트
+    if grep -q "MQTT_BROKER=localhost" "${BACKEND_DIR}/.env"; then
+        sed -i 's|MQTT_BROKER=localhost|MQTT_BROKER=onem2m.iotcoss.ac.kr|' "${BACKEND_DIR}/.env"
+        sed -i 's|MQTT_PORT=1883|MQTT_PORT=11883|' "${BACKEND_DIR}/.env"
+        log "MQTT 브로커 설정 업데이트: onem2m.iotcoss.ac.kr:11883"
+    fi
 fi
 
 # ─── 3. Backend 가상환경 및 의존성 설치 ───

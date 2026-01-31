@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { Monitor, ChevronDown, ChevronRight, Trash2, RefreshCw, Search, Pause, Play } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { Monitor, ChevronDown, ChevronRight, Trash2, Search } from 'lucide-vue-next'
 import { useSystemLogStore } from '@/stores/systemLog'
 import type { LogType } from '@/types/systemLog'
 
@@ -9,10 +9,6 @@ const store = useSystemLogStore()
 const page = ref(1)
 const size = 20
 const expandedId = ref<number | null>(null)
-const autoRefresh = ref(true)
-const paused = ref(false)
-
-let pollInterval: ReturnType<typeof setInterval> | null = null
 
 const TYPE_BADGES: Record<LogType, string> = {
   CONNECTION: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -71,62 +67,6 @@ const paginatedLogs = computed(() => {
 const totalFiltered = computed(() => store.filteredLogs.length)
 const totalPages = computed(() => Math.ceil(totalFiltered.value / size))
 
-// Polling: fetch server logs every 3 seconds when not paused
-async function fetchServerLogs() {
-  try {
-    const params = new URLSearchParams({ page: '1', size: '50' })
-    const res = await fetch(`/api/logs/?${params}`)
-    if (!res.ok) return
-    const data = await res.json()
-    if (Array.isArray(data.items)) {
-      for (const item of data.items) {
-        const exists = store.logs.some((l) => l.detail?.includes(item.id?.toString()))
-        if (!exists) {
-          store.addLog({
-            type: 'MESSAGE',
-            level: 'info',
-            source: 'Server',
-            message: `${item.method ?? 'LOG'} ${item.url ?? ''}`.trim() || 'Server log entry',
-            detail: JSON.stringify(item),
-          })
-        }
-      }
-    }
-  } catch {
-    // silent — server may not have this endpoint
-  }
-}
-
-function startPolling() {
-  stopPolling()
-  if (autoRefresh.value && !paused.value) {
-    pollInterval = setInterval(fetchServerLogs, 3000)
-  }
-}
-
-function stopPolling() {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
-  }
-}
-
-watch([autoRefresh, paused], () => {
-  if (autoRefresh.value && !paused.value) {
-    startPolling()
-  } else {
-    stopPolling()
-  }
-})
-
-function togglePause() {
-  paused.value = !paused.value
-}
-
-function handleManualRefresh() {
-  fetchServerLogs()
-}
-
 function handleClear() {
   if (!confirm('모든 시스템 로그를 삭제하시겠습니까?')) return
   store.clearLogs()
@@ -147,18 +87,6 @@ const mqttStyle = computed(() => MQTT_STATUS_STYLE[store.mqttStatus])
 
 onMounted(() => {
   store.fetchMqttInfo()
-  store.addLog({
-    type: 'SYSTEM',
-    level: 'info',
-    source: 'App',
-    message: 'System Log 페이지 초기화',
-    detail: null,
-  })
-  startPolling()
-})
-
-onUnmounted(() => {
-  stopPolling()
 })
 </script>
 
@@ -210,29 +138,6 @@ onUnmounted(() => {
           @input="setSearch(($event.target as HTMLInputElement).value)"
         />
       </div>
-
-      <!-- 일시정지 토글 -->
-      <button
-        :class="[
-          'flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors',
-          paused
-            ? 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30'
-            : 'bg-blue-600/20 text-blue-400 border-blue-500/30',
-        ]"
-        @click="togglePause"
-      >
-        <Pause v-if="!paused" class="w-4 h-4" />
-        <Play v-else class="w-4 h-4" />
-        {{ paused ? '재개' : '실시간' }}
-      </button>
-
-      <!-- 수동 새로고침 -->
-      <button
-        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors"
-        @click="handleManualRefresh"
-      >
-        <RefreshCw class="w-4 h-4" />
-      </button>
 
       <!-- 전체 삭제 -->
       <button
