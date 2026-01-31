@@ -11,13 +11,15 @@ const { devices } = storeToRefs(store)
 const isModalOpen = ref(false)
 const newName = ref('')
 const newLocation = ref('')
+const newMac = ref('')
 
 const handleAdd = () => {
-  if (!newName.value || !newLocation.value) return
-  store.addDevice(newName.value, newLocation.value)
+  if (!newName.value || !newLocation.value || !newMac.value) return
+  store.addDevice(newName.value, newLocation.value, newMac.value)
   // 입력 필드 초기화
   newName.value = ''
   newLocation.value = ''
+  newMac.value = ''
   isModalOpen.value = false
 }
 
@@ -91,6 +93,8 @@ const handleDelete = (id: number, name: string) => {
         <div class="space-y-4">
           <input v-model="newName" type="text" placeholder="이름 (예: 거실 TV)" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white outline-none" />
           <input v-model="newLocation" type="text" placeholder="위치 (예: 거실)" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white outline-none" />
+          <input v-model="newMac" type="text" placeholder="MAC 주소" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white outline-none" />
+
           <div class="flex gap-2">
             <button @click="isModalOpen = false" class="flex-1 py-3 bg-gray-800 text-white rounded-xl">취소</button>
             <button @click="handleAdd" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">등록</button>
