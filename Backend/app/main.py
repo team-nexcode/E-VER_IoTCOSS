@@ -31,6 +31,9 @@ from app.services.mobius_service import mobius_service
 # DB 세션 (로그 저장용)
 from app.database import async_session
 from app.models.system_log import SystemLog
+from app.models.device import Device
+from app.models.device_mac import DeviceMac
+from sqlalchemy import select
 
 # 모든 모델을 import하여 create_all 시 테이블이 생성되도록 함
 import app.models  # noqa: F401
@@ -72,32 +75,39 @@ async def lifespan(app: FastAPI):
             # MQTT 메시지 수신 → DB 저장 + WebSocket 브로드캐스트
             async def on_mqtt_message(topic: str, payload):
                 logger.info(f"MQTT 수신: {topic} → {payload}")
-                # DB에 로그 저장
+                import json
+
+                # payload를 dict로 파싱
                 try:
-                    import json
+                    data = payload if isinstance(payload, dict) else json.loads(payload)
+                except Exception:
+                    data = {}
+
+                # oneM2M 구조에서 m2m:cin 객체 추출
+                cin = None
+                if "m2m:sgn" in data:
+                    cin = data["m2m:sgn"].get("nev", {}).get("rep", {}).get("m2m:cin", {})
+                elif "con" in data:
+                    cin = data
+
+                # ct(생성시간) 파싱
+                parsed_ts = None
+                if cin:
+                    ct = cin.get("ct")
+                    if ct:
+                        try:
+                            parsed_ts = datetime.strptime(ct, "%Y%m%dT%H%M%S")
+                        except Exception:
+                            parsed_ts = None
+
+                # 1) 시스템 로그 저장
+                try:
                     detail = json.dumps({
                         "broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
                         "topic": topic,
                         "subscribe_filter": settings.MQTT_TOPIC,
                         "payload": payload,
                     }, ensure_ascii=False)
-
-                    # payload에서 ct(생성시간) 필드 추출
-                    parsed_ts = None
-                    try:
-                        data = payload if isinstance(payload, dict) else json.loads(payload)
-                        ct = None
-                        # oneM2M 구조: 최상위 ct 또는 m2m:sgn > nev > rep > m2m:cin > ct
-                        if "ct" in data:
-                            ct = data["ct"]
-                        elif "m2m:sgn" in data:
-                            sgn = data["m2m:sgn"]
-                            cin = (sgn.get("nev", {}).get("rep", {}).get("m2m:cin", {}))
-                            ct = cin.get("ct")
-                        if ct:
-                            parsed_ts = datetime.strptime(ct, "%Y%m%dT%H%M%S")
-                    except Exception:
-                        parsed_ts = None
 
                     async with async_session() as session:
                         log_entry = SystemLog(
@@ -113,6 +123,50 @@ async def lifespan(app: FastAPI):
                         await session.commit()
                 except Exception as e:
                     logger.error(f"시스템 로그 DB 저장 실패: {e}")
+
+                # 2) 디바이스 센서 데이터 파싱 및 저장
+                if cin:
+                    try:
+                        # lbl에서 MAC 주소 추출
+                        lbl = cin.get("lbl", [])
+                        mac_addr = None
+                        for item in lbl:
+                            if isinstance(item, str) and ":" in item and len(item) == 17:
+                                mac_addr = item
+                                break
+
+                        if mac_addr:
+                            async with async_session() as session:
+                                # device_mac 테이블에서 매칭 확인
+                                result = await session.execute(
+                                    select(DeviceMac).where(DeviceMac.device_mac == mac_addr)
+                                )
+                                mac_entry = result.scalar_one_or_none()
+
+                                if mac_entry:
+                                    # con 데이터 추출 (문자열일 수도 있으므로 처리)
+                                    con = cin.get("con", {})
+                                    if isinstance(con, str):
+                                        try:
+                                            con = json.loads(con)
+                                        except Exception:
+                                            con = {}
+
+                                    device_entry = Device(
+                                        device_name=mac_entry.device_name,
+                                        device_mac=mac_addr,
+                                        temperature=float(con["temp"]) if "temp" in con else None,
+                                        humidity=float(con["humi"]) if "humi" in con else None,
+                                        energy_amp=float(con["energy"]) if "energy" in con else None,
+                                        relay_status=str(con["status"]) if "status" in con else None,
+                                        timestamp=parsed_ts,
+                                    )
+                                    session.add(device_entry)
+                                    await session.commit()
+                                    logger.info(f"디바이스 센서 데이터 저장: {mac_entry.device_name} ({mac_addr})")
+                    except Exception as e:
+                        logger.error(f"디바이스 센서 데이터 저장 실패: {e}")
+
                 await broadcast_mqtt_message(topic, payload)
 
             mqtt_service.set_message_handler(on_mqtt_message)
