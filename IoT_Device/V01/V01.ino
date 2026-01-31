@@ -6,8 +6,8 @@ DHT11 dht(A1);
 
 byte mac[6];
 
-char ssid[] = "Hwang";
-char pass[] = "05040504";
+char ssid[] = "CSE-3173_2.4G";
+char pass[] = "[WIFI_PASSWORD]";
 
 // 1. 서버 주소
 char server[] = "onem2m.iotcoss.ac.kr"; 
