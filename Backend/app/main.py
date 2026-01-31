@@ -32,6 +32,9 @@ from app.services.mobius_service import mobius_service
 from app.database import async_session
 from app.models.system_log import SystemLog
 
+# 모든 모델을 import하여 create_all 시 테이블이 생성되도록 함
+import app.models  # noqa: F401
+
 settings = get_settings()
 
 # 로깅 설정
