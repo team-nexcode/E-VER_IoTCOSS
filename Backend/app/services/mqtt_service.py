@@ -1,6 +1,7 @@
 """
 MQTT 서비스 모듈
 IoT 디바이스와의 MQTT 통신을 관리합니다.
+oneM2M 요청 메시지 수신 시 응답(ACK)을 자동 발송합니다.
 """
 
 import asyncio
@@ -15,14 +16,11 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-RECONNECT_DELAY = 5  # 재연결 대기 시간(초)
+RECONNECT_DELAY = 5
 
 
 class MQTTService:
-    """
-    MQTT 클라이언트 서비스 클래스
-    디바이스와의 MQTT 메시지 송수신을 관리합니다.
-    """
+    """MQTT 클라이언트 서비스 클래스"""
 
     def __init__(self):
         self._client: Optional[aiomqtt.Client] = None
@@ -40,7 +38,7 @@ class MQTTService:
             self._client = aiomqtt.Client(
                 hostname=settings.MQTT_BROKER,
                 port=settings.MQTT_PORT,
-                keepalive=60,
+                keepalive=30,
             )
             await self._client.__aenter__()
             self._is_connected = True
@@ -71,25 +69,53 @@ class MQTTService:
         except Exception as e:
             logger.error(f"MQTT 토픽 구독 실패 ({topic}): {e}")
 
-    async def publish(self, topic: str, payload: dict) -> None:
+    async def publish(self, topic: str, payload: str) -> None:
         """MQTT 토픽에 메시지를 발행합니다."""
         if not self._client or not self._is_connected:
             logger.warning("MQTT 클라이언트가 연결되지 않았습니다. 발행 불가.")
             return
         try:
-            message = json.dumps(payload)
-            await self._client.publish(topic, message)
-            logger.info(f"MQTT 메시지 발행: {topic} → {message}")
+            await self._client.publish(topic, payload)
+            logger.debug(f"MQTT 발행: {topic}")
         except Exception as e:
-            logger.error(f"MQTT 메시지 발행 실패 ({topic}): {e}")
+            logger.error(f"MQTT 발행 실패 ({topic}): {e}")
 
     def set_message_handler(self, handler: Callable) -> None:
-        """수신 메시지 핸들러를 설정합니다."""
         self._message_handler = handler
+
+    async def _send_onem2m_response(self, topic: str, payload) -> None:
+        """
+        oneM2M 요청에 대한 응답(ACK)을 발송합니다.
+        요청 토픽: /oneM2M/req/{from}/{to}/...
+        응답 토픽: /oneM2M/resp/{from}/{to}/...
+        """
+        if not isinstance(payload, dict):
+            return
+
+        rqi = payload.get("rqi") or payload.get("m2m:rqp", {}).get("rqi")
+        if not rqi:
+            return
+
+        # 요청 토픽에서 응답 토픽 생성
+        resp_topic = topic.replace("/oneM2M/req/", "/oneM2M/resp/", 1)
+
+        # 응답 메시지 구성
+        response = {
+            "rsc": 2000,
+            "rqi": rqi,
+            "pc": {},
+        }
+
+        try:
+            await self.publish(resp_topic, json.dumps(response))
+            logger.info(f"oneM2M ACK 발송: {resp_topic} (rqi={rqi})")
+        except Exception as e:
+            logger.error(f"oneM2M ACK 발송 실패: {e}")
 
     async def listen(self) -> None:
         """
         구독된 토픽의 메시지를 수신하고 핸들러를 호출합니다.
+        oneM2M 요청에는 자동으로 응답을 보냅니다.
         연결이 끊기면 자동으로 재연결합니다.
         """
         while True:
@@ -111,7 +137,12 @@ class MQTTService:
                         payload = json.loads(message.payload.decode())
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         payload = message.payload.decode(errors="replace")
-                    logger.debug(f"MQTT 메시지 수신: {topic} → {payload}")
+
+                    logger.debug(f"MQTT 수신: {topic}")
+
+                    # oneM2M 요청이면 ACK 응답
+                    if "/oneM2M/req/" in topic:
+                        await self._send_onem2m_response(topic, payload)
 
                     if self._message_handler:
                         await self._message_handler(topic, payload)
@@ -125,5 +156,4 @@ class MQTTService:
                 await asyncio.sleep(RECONNECT_DELAY)
 
 
-# 전역 MQTT 서비스 인스턴스
 mqtt_service = MQTTService()
