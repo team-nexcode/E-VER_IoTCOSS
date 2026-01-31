@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Plug, Plus, Trash2, MapPin, Power, X } from 'lucide-vue-next'
+import { Plug, Plus, Trash2, MapPin, Power } from 'lucide-vue-next'
 import { useDeviceStore } from '@/stores/device'
 import { storeToRefs } from 'pinia'
 
