@@ -1,7 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { useDeviceStore } from '@/stores/device'
 import { useSystemLogStore } from '@/stores/systemLog'
-import type { Device } from '@/types/device'
 
 export function useWebSocket(url: string) {
   const isConnected = ref(false)
@@ -83,22 +82,15 @@ export function useWebSocket(url: string) {
           return
         }
 
+        // 디바이스 센서 실시간 업데이트 (MQTT 데이터 INSERT 시)
+        if (message.type === 'device_update' && message.data) {
+          store.updateDeviceSensor(message.data)
+          return
+        }
+
         // 디바이스 상태 (연결 직후 1회) → 디바이스 업데이트만, 로그 안 남김
         if (message.type === 'device_status' && Array.isArray(message.data)) {
-          const now = new Date().toISOString()
-          const updated: Device[] = message.data.map((d: Record<string, unknown>) => ({
-            id: d.id as number,
-            name: (d.name as string) ?? '',
-            location: (d.location as string) ?? '',
-            mqttTopic: `/oneM2M/req/Mobius/SOrigin_nexcode/${d.id}`,
-            isActive: (d.is_active as boolean) ?? false,
-            currentPower: (d.current_power as number) ?? 0,
-            temperature: (d.temperature as number) ?? 0,
-            isOnline: (d.is_online as boolean) ?? false,
-            createdAt: now,
-            updatedAt: now,
-          }))
-          store.setDevices(updated)
+          store.setDevices(message.data)
           return
         }
 

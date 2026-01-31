@@ -8,10 +8,11 @@ import json
 from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 
 from app.database import async_session
 from app.models.device import Device
+from app.models.device_mac import DeviceMac
 from app.config import get_settings
 
 settings = get_settings()
@@ -52,25 +53,51 @@ manager = ConnectionManager()
 
 
 async def get_all_device_status() -> list:
-    """최근 디바이스 센서 데이터를 조회합니다."""
+    """device_mac 테이블 기반으로 전체 디바이스 목록 + 최신 센서 데이터를 조회합니다."""
     async with async_session() as session:
-        result = await session.execute(
-            select(Device).order_by(desc(Device.id)).limit(20)
+        # device_mac 전체 목록 조회
+        mac_result = await session.execute(
+            select(DeviceMac).order_by(DeviceMac.id)
         )
-        devices = result.scalars().all()
-        return [
-            {
-                "id": device.id,
-                "device_name": device.device_name,
-                "device_mac": device.device_mac,
-                "temperature": device.temperature,
-                "humidity": device.humidity,
-                "energy_amp": device.energy_amp,
-                "relay_status": device.relay_status,
-                "timestamp": str(device.timestamp) if device.timestamp else None,
-            }
-            for device in devices
-        ]
+        mac_entries = mac_result.scalars().all()
+
+        # 각 MAC별 최신 devices 레코드의 id를 서브쿼리로 조회
+        latest_subq = (
+            select(
+                Device.device_mac,
+                func.max(Device.id).label("max_id"),
+            )
+            .group_by(Device.device_mac)
+            .subquery()
+        )
+
+        # 최신 레코드들을 한 번에 조회
+        latest_result = await session.execute(
+            select(Device).join(
+                latest_subq,
+                (Device.device_mac == latest_subq.c.device_mac)
+                & (Device.id == latest_subq.c.max_id),
+            )
+        )
+        latest_devices = {d.device_mac: d for d in latest_result.scalars().all()}
+
+        result = []
+        for mac in mac_entries:
+            latest = latest_devices.get(mac.device_mac)
+            result.append({
+                "id": mac.id,
+                "device_name": mac.device_name,
+                "device_mac": mac.device_mac,
+                "location": mac.location,
+                "temperature": latest.temperature if latest else None,
+                "humidity": latest.humidity if latest else None,
+                "energy_amp": latest.energy_amp if latest else None,
+                "relay_status": latest.relay_status if latest else None,
+                "is_online": latest is not None,
+                "timestamp": str(latest.timestamp) if latest and latest.timestamp else None,
+            })
+
+        return result
 
 
 async def broadcast_mqtt_message(topic: str, payload) -> None:
@@ -96,6 +123,11 @@ async def broadcast_system_log(message: str, detail: str | None = None, level: s
             "detail": detail,
         },
     })
+
+
+async def broadcast_device_update(data: dict) -> None:
+    """디바이스 센서 데이터 업데이트를 모든 WebSocket 클라이언트에 실시간 전달합니다."""
+    await manager.broadcast({"type": "device_update", "data": data})
 
 
 @router.websocket("/ws/devices")
