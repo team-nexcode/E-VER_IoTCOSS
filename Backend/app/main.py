@@ -84,8 +84,12 @@ async def lifespan(app: FastAPI):
                     data = {}
 
                 # oneM2M 구조에서 m2m:cin 객체 추출
+                # 실제 구조: payload > pc > m2m:sgn > nev > rep > m2m:cin
                 cin = None
-                if "m2m:sgn" in data:
+                if "pc" in data:
+                    sgn = data["pc"].get("m2m:sgn", {})
+                    cin = sgn.get("nev", {}).get("rep", {}).get("m2m:cin", {})
+                elif "m2m:sgn" in data:
                     cin = data["m2m:sgn"].get("nev", {}).get("rep", {}).get("m2m:cin", {})
                 elif "con" in data:
                     cin = data
@@ -162,6 +166,29 @@ async def lifespan(app: FastAPI):
                                         timestamp=parsed_ts,
                                     )
                                     session.add(device_entry)
+                                    await session.flush()
+
+                                    # 시스템 로그: 디바이스 센서 데이터 저장
+                                    sensor_log = SystemLog(
+                                        type="SYSTEM",
+                                        level="info",
+                                        source="App",
+                                        message=f"[devices] INSERT: {mac_entry.device_name} ({mac_addr})",
+                                        detail=json.dumps({
+                                            "table": "devices",
+                                            "action": "INSERT",
+                                            "device_name": mac_entry.device_name,
+                                            "device_mac": mac_addr,
+                                            "temperature": device_entry.temperature,
+                                            "humidity": device_entry.humidity,
+                                            "energy_amp": device_entry.energy_amp,
+                                            "relay_status": device_entry.relay_status,
+                                            "timestamp": str(parsed_ts) if parsed_ts else None,
+                                        }, ensure_ascii=False),
+                                    )
+                                    if parsed_ts:
+                                        sensor_log.timestamp = parsed_ts
+                                    session.add(sensor_log)
                                     await session.commit()
                                     logger.info(f"디바이스 센서 데이터 저장: {mac_entry.device_name} ({mac_addr})")
                     except Exception as e:
