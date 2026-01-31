@@ -7,7 +7,7 @@ import {
   BarChart3,
   Clock,
   Bell,
-  FileText,
+  Monitor,
   Settings,
 } from 'lucide-vue-next'
 
@@ -23,7 +23,7 @@ const navItems: NavItem[] = [
   { to: '/power', icon: BarChart3, label: '전력 분석' },
   { to: '/schedule', icon: Clock, label: '스케줄' },
   { to: '/alerts', icon: Bell, label: '알림' },
-  { to: '/api-logs', icon: FileText, label: 'API 로그' },
+  { to: '/system-log', icon: Monitor, label: 'System Log' },
   { to: '/settings', icon: Settings, label: '설정' },
 ]
 
