@@ -8,6 +8,8 @@ let nextId = 1
 
 export const useSystemLogStore = defineStore('systemLog', () => {
   const mqttStatus = ref<'connected' | 'disconnected' | 'connecting'>('disconnected')
+  const mqttBroker = ref('')
+  const mqttTopic = ref('')
   const logs = ref<SystemLog[]>([])
   const typeFilter = ref<LogType | ''>('')
   const searchQuery = ref('')
@@ -45,13 +47,30 @@ export const useSystemLogStore = defineStore('systemLog', () => {
     logs.value = []
   }
 
+  async function fetchMqttInfo() {
+    try {
+      const res = await fetch('/api/health')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.mqtt_broker) mqttBroker.value = data.mqtt_broker
+        if (data.mqtt_topic) mqttTopic.value = data.mqtt_topic
+        mqttStatus.value = data.mqtt_connected ? 'connected' : 'disconnected'
+      }
+    } catch {
+      // silent
+    }
+  }
+
   return {
     mqttStatus,
+    mqttBroker,
+    mqttTopic,
     logs,
     typeFilter,
     searchQuery,
     addLog,
     filteredLogs,
     clearLogs,
+    fetchMqttInfo,
   }
 })

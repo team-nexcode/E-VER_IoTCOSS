@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
 
     # MQTT 브로커 설정
-    MQTT_BROKER: str = "localhost"
-    MQTT_PORT: int = 1883
+    MQTT_BROKER: str = "onem2m.iotcoss.ac.kr"
+    MQTT_PORT: int = 11883
     MQTT_TOPIC: str = "/oneM2M/req/Mobius/SOrigin_nexcode/#"
 
     # JWT 인증 설정

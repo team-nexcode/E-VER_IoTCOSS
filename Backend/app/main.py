@@ -118,5 +118,7 @@ async def health_check():
         "status": "healthy",
         "service": settings.APP_NAME,
         "mqtt_connected": mqtt_service.is_connected,
+        "mqtt_broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
+        "mqtt_topic": settings.MQTT_TOPIC,
         "server_time": datetime.now(timezone.utc).isoformat(),
     }

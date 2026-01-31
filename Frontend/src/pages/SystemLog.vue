@@ -146,7 +146,7 @@ function setSearch(val: string) {
 const mqttStyle = computed(() => MQTT_STATUS_STYLE[store.mqttStatus])
 
 onMounted(() => {
-  // Add initial system log
+  store.fetchMqttInfo()
   store.addLog({
     type: 'SYSTEM',
     level: 'info',
@@ -173,6 +173,9 @@ onUnmounted(() => {
 
       <!-- MQTT 상태 인디케이터 -->
       <div class="flex items-center gap-3 bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-2.5">
+        <span v-if="store.mqttBroker" class="text-xs font-mono text-gray-500">
+          {{ store.mqttBroker }}
+        </span>
         <div class="flex items-center gap-2">
           <div :class="['w-2.5 h-2.5 rounded-full', mqttStyle.dot]" />
           <span class="text-xs font-medium text-gray-400">MQTT</span>
