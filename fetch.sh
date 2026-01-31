@@ -94,14 +94,30 @@ pip install -q -r requirements.txt
 deactivate
 log "Backend 의존성 설치 완료"
 
-# ─── 4. Frontend 빌드 ───
+# ─── 4. Swap 파일 생성 (메모리 부족 방지) ───
+if [ ! -f /swapfile ]; then
+    warn "Swap 파일 생성 중 (1GB)..."
+    sudo fallocate -l 1G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    log "Swap 파일 생성 및 활성화 완료"
+elif ! swapon --show | grep -q /swapfile; then
+    warn "Swap 파일 활성화 중..."
+    sudo swapon /swapfile
+    log "Swap 파일 활성화 완료"
+else
+    log "Swap 파일 이미 활성화됨"
+fi
+
+# ─── 5. Frontend 빌드 ───
 warn "Frontend 빌드 중..."
 cd "${FRONTEND_DIR}"
 npm install --silent
-npm run build
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 log "Frontend 빌드 완료"
 
-# ─── 5. 서비스 재시작 ───
+# ─── 6. 서비스 재시작 ───
 warn "서비스 재시작 중..."
 
 sudo systemctl restart iotcoss-backend 2>/dev/null && \
@@ -112,7 +128,7 @@ sudo systemctl restart nginx 2>/dev/null && \
     log "Nginx 재시작 완료" || \
     warn "Nginx가 설치되지 않음"
 
-# ─── 6. 상태 확인 ───
+# ─── 7. 상태 확인 ───
 echo ""
 echo "========================================"
 echo "  배포 완료 - 서비스 상태"
