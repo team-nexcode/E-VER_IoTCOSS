@@ -3,6 +3,7 @@ IoTCOSS 백엔드 FastAPI 앱 진입점
 애플리케이션 인스턴스를 생성하고 미들웨어, 라우터, 이벤트를 설정합니다.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
@@ -17,7 +18,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 
@@ -51,16 +52,29 @@ async def lifespan(app: FastAPI):
     logger.info("데이터베이스 테이블 초기화 완료")
 
     # MQTT 브로커 연결 시도
+    mqtt_listen_task = None
     try:
         await mqtt_service.connect()
         if mqtt_service.is_connected:
             logger.info("MQTT 브로커 연결 완료")
             await mqtt_service.subscribe(settings.MQTT_TOPIC)
             logger.info(f"MQTT 토픽 구독: {settings.MQTT_TOPIC}")
+
+            # MQTT 메시지 수신 → WebSocket 브로드캐스트 핸들러
+            async def on_mqtt_message(topic: str, payload):
+                logger.info(f"MQTT 수신: {topic} → {payload}")
+                await broadcast_mqtt_message(topic, payload)
+
+            mqtt_service.set_message_handler(on_mqtt_message)
+            mqtt_listen_task = asyncio.create_task(mqtt_service.listen())
+            logger.info("MQTT 리스너 시작")
     except Exception as e:
         logger.warning(f"MQTT 브로커 연결 실패 (서버는 계속 실행됩니다): {e}")
 
     yield
+
+    if mqtt_listen_task:
+        mqtt_listen_task.cancel()
 
     # === 앱 종료 시 ===
     logger.info("IoTCOSS 백엔드 서버를 종료합니다...")
