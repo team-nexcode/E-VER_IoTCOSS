@@ -13,6 +13,10 @@ export const useSystemLogStore = defineStore('systemLog', () => {
   const logs = ref<SystemLog[]>([])
   const typeFilter = ref<LogType | ''>('')
   const searchQuery = ref('')
+  const totalFromServer = ref(0)
+  const serverPage = ref(1)
+  const serverSize = 20
+  const loadingHistory = ref(false)
 
   function addLog(log: Omit<SystemLog, 'id' | 'timestamp'>) {
     const entry: SystemLog = {
@@ -45,6 +49,8 @@ export const useSystemLogStore = defineStore('systemLog', () => {
 
   function clearLogs() {
     logs.value = []
+    // 서버 로그도 삭제
+    fetch('/api/system-logs/', { method: 'DELETE' }).catch(() => {})
   }
 
   async function fetchMqttInfo() {
@@ -61,6 +67,42 @@ export const useSystemLogStore = defineStore('systemLog', () => {
     }
   }
 
+  async function fetchHistoryLogs(page = 1) {
+    loadingHistory.value = true
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        size: String(serverSize),
+      })
+      if (typeFilter.value) params.set('type', typeFilter.value)
+      if (searchQuery.value) params.set('search', searchQuery.value)
+      const res = await fetch(`/api/system-logs/?${params}`)
+      if (!res.ok) return
+      const data = await res.json()
+      totalFromServer.value = data.total
+      serverPage.value = page
+
+      // 서버 로그를 SystemLog 형식으로 변환
+      const serverLogs: SystemLog[] = (data.items || []).map((item: Record<string, unknown>) => {
+        const id = nextId++
+        return {
+          id,
+          timestamp: item.timestamp as string,
+          type: item.type as LogType,
+          level: (item.level as string) || 'info',
+          source: (item.source as string) || 'MQTT',
+          message: (item.message as string) || '',
+          detail: (item.detail as string) || null,
+        }
+      })
+      logs.value = serverLogs
+    } catch {
+      // silent
+    } finally {
+      loadingHistory.value = false
+    }
+  }
+
   return {
     mqttStatus,
     mqttBroker,
@@ -68,9 +110,14 @@ export const useSystemLogStore = defineStore('systemLog', () => {
     logs,
     typeFilter,
     searchQuery,
+    totalFromServer,
+    serverPage,
+    serverSize,
+    loadingHistory,
     addLog,
     filteredLogs,
     clearLogs,
     fetchMqttInfo,
+    fetchHistoryLogs,
   }
 })

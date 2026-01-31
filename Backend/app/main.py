@@ -21,10 +21,15 @@ from app.api.auth import router as auth_router
 from app.api.websocket import router as websocket_router, broadcast_mqtt_message
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
+from app.api.system_logs import router as system_logs_router
 
 # 서비스 import
 from app.services.mqtt_service import mqtt_service
 from app.services.mobius_service import mobius_service
+
+# DB 세션 (로그 저장용)
+from app.database import async_session
+from app.models.system_log import SystemLog
 
 settings = get_settings()
 
@@ -60,9 +65,30 @@ async def lifespan(app: FastAPI):
             await mqtt_service.subscribe(settings.MQTT_TOPIC)
             logger.info(f"MQTT 토픽 구독: {settings.MQTT_TOPIC}")
 
-            # MQTT 메시지 수신 → WebSocket 브로드캐스트 핸들러
+            # MQTT 메시지 수신 → DB 저장 + WebSocket 브로드캐스트
             async def on_mqtt_message(topic: str, payload):
                 logger.info(f"MQTT 수신: {topic} → {payload}")
+                # DB에 로그 저장
+                try:
+                    import json
+                    detail = json.dumps({
+                        "broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
+                        "topic": topic,
+                        "subscribe_filter": settings.MQTT_TOPIC,
+                        "payload": payload,
+                    }, ensure_ascii=False)
+                    async with async_session() as session:
+                        log_entry = SystemLog(
+                            type="MESSAGE",
+                            level="info",
+                            source="MQTT",
+                            message=f"토픽: {topic}",
+                            detail=detail,
+                        )
+                        session.add(log_entry)
+                        await session.commit()
+                except Exception as e:
+                    logger.error(f"시스템 로그 DB 저장 실패: {e}")
                 await broadcast_mqtt_message(topic, payload)
 
             mqtt_service.set_message_handler(on_mqtt_message)
@@ -120,6 +146,7 @@ app.include_router(auth_router)
 app.include_router(websocket_router)
 app.include_router(mobius_router)
 app.include_router(api_logs_router)
+app.include_router(system_logs_router)
 
 
 @app.get("/api/health", tags=["헬스체크"])

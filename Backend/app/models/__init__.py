@@ -7,5 +7,6 @@ from app.models.device import Device
 from app.models.power_log import PowerLog
 from app.models.user import User
 from app.models.api_log import ApiLog
+from app.models.system_log import SystemLog
 
-__all__ = ["Device", "PowerLog", "User", "ApiLog"]
+__all__ = ["Device", "PowerLog", "User", "ApiLog", "SystemLog"]
