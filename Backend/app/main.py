@@ -55,6 +55,8 @@ async def lifespan(app: FastAPI):
         await mqtt_service.connect()
         if mqtt_service.is_connected:
             logger.info("MQTT 브로커 연결 완료")
+            await mqtt_service.subscribe(settings.MQTT_TOPIC)
+            logger.info(f"MQTT 토픽 구독: {settings.MQTT_TOPIC}")
     except Exception as e:
         logger.warning(f"MQTT 브로커 연결 실패 (서버는 계속 실행됩니다): {e}")
 
