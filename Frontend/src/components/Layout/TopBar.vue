@@ -9,6 +9,7 @@ const unreadCount = ref(0)
 
 // 알림 기능 로직 (기존과 동일)
 async function fetchNotifications() {
+  return;
   try {
     const res = await fetch('/api/notifications/unread-count')
     if (res.ok) {
