@@ -8,7 +8,7 @@ import json
 from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import select, desc
 
 from app.database import async_session
 from app.models.device import Device
@@ -52,19 +52,22 @@ manager = ConnectionManager()
 
 
 async def get_all_device_status() -> list:
-    """모든 디바이스의 현재 상태를 조회합니다."""
+    """최근 디바이스 센서 데이터를 조회합니다."""
     async with async_session() as session:
-        result = await session.execute(select(Device))
+        result = await session.execute(
+            select(Device).order_by(desc(Device.id)).limit(20)
+        )
         devices = result.scalars().all()
         return [
             {
                 "id": device.id,
-                "name": device.name,
-                "location": device.location,
-                "is_active": device.is_active,
-                "current_power": device.current_power,
+                "device_name": device.device_name,
+                "device_mac": device.device_mac,
                 "temperature": device.temperature,
-                "is_online": device.is_online,
+                "humidity": device.humidity,
+                "energy_amp": device.energy_amp,
+                "relay_status": device.relay_status,
+                "timestamp": str(device.timestamp) if device.timestamp else None,
             }
             for device in devices
         ]
