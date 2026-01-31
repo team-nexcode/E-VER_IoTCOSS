@@ -222,11 +222,11 @@ server {
     listen 80;
     server_name _;  # 도메인이 있으면 도메인명으로 변경
 
-    # React 정적 파일 서빙
+    # Vue 정적 파일 서빙
     root /home/ubuntu/IoTCOSS_NEXCODE/Frontend/dist;
     index index.html;
 
-    # SPA 라우팅 지원 (React Router)
+    # SPA 라우팅 지원 (Vue Router)
     location / {
         try_files $uri $uri/ /index.html;
     }
@@ -270,7 +270,7 @@ sudo nginx -t
 sudo systemctl restart nginx
 
 # 브라우저에서 확인: http://<EC2-IP>
-# → React 대시보드가 보이면 성공!
+# → Vue 대시보드가 보이면 성공!
 
 
 ================================================================================

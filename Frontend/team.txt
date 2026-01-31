@@ -1,0 +1,158 @@
+=====================================
+  프론트엔드 협업 팀원 환경 설정 가이드
+  (Windows 기준)
+=====================================
+
+■ 필수 소프트웨어 설치
+──────────────────────
+
+1. Node.js (LTS 22.x 이상)
+   - https://nodejs.org 에서 Windows Installer (.msi) 다운로드
+   - 설치 시 "Add to PATH" 체크 확인
+   - 설치 확인: cmd 또는 PowerShell에서
+       node -v
+       npm -v
+
+2. Git
+   - https://git-scm.com/download/win 에서 다운로드
+   - 설치 시 기본 옵션 유지 (Git Bash 포함)
+   - 설치 확인:
+       git --version
+
+3. VS Code (권장 에디터)
+   - https://code.visualstudio.com 에서 다운로드
+
+■ VS Code 확장 프로그램 (필수)
+──────────────────────────────
+
+1. Vue - Official (구 Volar)  →  Vue 3 SFC 지원, 타입 체크
+   - 확장 ID: Vue.volar
+
+2. TypeScript Vue Plugin
+   - Vue.volar 설치 시 자동 포함
+
+3. Tailwind CSS IntelliSense
+   - 확장 ID: bradlc.vscode-tailwindcss
+
+4. ESLint
+   - 확장 ID: dbaeumer.vscode-eslint
+
+5. EditorConfig for VS Code (선택)
+   - 확장 ID: EditorConfig.EditorConfig
+
+※ 주의: 이전에 React 관련 확장(ES7+ React snippets 등)은
+  비활성화해도 무방합니다.
+
+■ 프로젝트 클론 및 실행
+────────────────────────
+
+# 1. 저장소 클론
+git clone <저장소 URL>
+cd AIoT/Frontend
+
+# 2. 의존성 설치
+npm install
+
+# 3. 개발 서버 실행
+npm run dev
+
+# 4. 브라우저에서 확인
+http://localhost:5173
+
+■ 주요 npm 스크립트
+────────────────────
+
+npm run dev       → 개발 서버 실행 (HMR 지원)
+npm run build     → 프로덕션 빌드 (vue-tsc 타입 체크 + Vite 번들링)
+npm run preview   → 빌드 결과물 로컬 프리뷰
+npm run lint      → ESLint 코드 검사
+
+■ 기술 스택 요약
+──────────────────
+
+- Vue 3.5 + Composition API (<script setup lang="ts">)
+- Vue Router 4 (라우팅)
+- Pinia 2 (상태 관리)
+- ECharts 5 + vue-echarts 7 (차트)
+- Tailwind CSS v4 (스타일링)
+- Lucide Vue Next (아이콘)
+- TypeScript 5.9
+- Vite 7 (빌드 도구)
+
+■ 프로젝트 구조
+──────────────────
+
+Frontend/
+├── src/
+│   ├── main.ts                  ← Vue 앱 진입점
+│   ├── App.vue                  ← 루트 컴포넌트
+│   ├── env.d.ts                 ← Vue SFC 타입 선언
+│   ├── index.css                ← Tailwind + CSS 변수
+│   ├── router/
+│   │   └── index.ts             ← vue-router 설정 (7개 라우트)
+│   ├── stores/
+│   │   └── device.ts            ← Pinia 스토어 (디바이스 상태)
+│   ├── composables/
+│   │   └── useWebSocket.ts      ← WebSocket 컴포저블
+│   ├── types/
+│   │   ├── device.ts            ← 디바이스 관련 타입
+│   │   └── apiLog.ts            ← API 로그 타입
+│   ├── components/
+│   │   ├── Layout/
+│   │   │   ├── Layout.vue
+│   │   │   ├── TopBar.vue
+│   │   │   └── Sidebar.vue
+│   │   └── Dashboard/
+│   │       ├── StatusCard.vue
+│   │       ├── PowerChart.vue
+│   │       ├── DevicePanel.vue
+│   │       ├── FloorPlan.vue
+│   │       └── OutletPopup.vue
+│   └── pages/
+│       ├── Dashboard.vue
+│       ├── Devices.vue
+│       ├── PowerAnalysis.vue
+│       ├── Schedule.vue
+│       ├── Alerts.vue
+│       ├── ApiLogs.vue
+│       └── Settings.vue
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tsconfig.app.json
+└── eslint.config.js
+
+■ Windows 관련 주의사항
+────────────────────────
+
+1. 줄바꿈 (CRLF vs LF)
+   - Git 설정에서 autocrlf 확인:
+       git config --global core.autocrlf true
+   - 이렇게 하면 체크아웃 시 CRLF, 커밋 시 LF로 자동 변환
+
+2. 경로 길이 제한
+   - node_modules 경로가 길어질 수 있음
+   - Windows 10 이상에서 긴 경로 활성화:
+       git config --global core.longpaths true
+
+3. PowerShell 실행 정책
+   - npm 스크립트 실행 시 오류 발생하면:
+       Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+4. 포트 충돌
+   - 5173 포트가 사용 중이면 Vite가 자동으로 다른 포트 사용
+   - 터미널 출력에서 실제 포트 번호 확인
+
+■ API 프록시 설정
+──────────────────
+
+개발 서버(vite.config.ts)에 프록시가 설정되어 있으므로
+별도 백엔드 서버 설정 없이 API 호출이 자동 프록시됩니다:
+  /api  → http://iotcoss.nexcode.kr:8000
+  /ws   → ws://iotcoss.nexcode.kr:8000
+
+■ 문의
+───────
+
+프로젝트 세팅 관련 문제가 있으면 팀 리드에게 문의하세요.
