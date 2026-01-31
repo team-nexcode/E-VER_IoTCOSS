@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.device_mac import DeviceMac
 from app.models.system_log import SystemLog
+from app.api.websocket import broadcast_system_log
 from app.schemas.device_mac import (
     DeviceMacCreate,
     DeviceMacListResponse,
@@ -69,11 +70,16 @@ async def create_device_mac(data: DeviceMacCreate, db: AsyncSession = Depends(ge
     await db.flush()
     await db.refresh(device)
 
-    await _write_system_log(db, "INSERT", {
+    detail_data = {
         "device_name": device.device_name,
         "device_mac": device.device_mac,
         "location": device.location,
-    })
+    }
+    await _write_system_log(db, "INSERT", detail_data)
+    await broadcast_system_log(
+        message=f"[device_mac] INSERT: {device.device_name} ({device.device_mac})",
+        detail=json.dumps({"table": "device_mac", "action": "INSERT", **detail_data}, ensure_ascii=False),
+    )
     return device
 
 
@@ -113,13 +119,18 @@ async def update_device_mac(
     await db.flush()
     await db.refresh(device)
 
-    await _write_system_log(db, "UPDATE", {
+    update_detail = {
         "id": device_id,
         "device_name": device.device_name,
         "device_mac": device.device_mac,
         "location": device.location,
         "old_values": old_values,
-    })
+    }
+    await _write_system_log(db, "UPDATE", update_detail)
+    await broadcast_system_log(
+        message=f"[device_mac] UPDATE: {device.device_name} ({device.device_mac})",
+        detail=json.dumps({"table": "device_mac", "action": "UPDATE", **update_detail}, ensure_ascii=False),
+    )
     return device
 
 
@@ -141,3 +152,7 @@ async def delete_device_mac(device_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(device)
 
     await _write_system_log(db, "DELETE", deleted_info)
+    await broadcast_system_log(
+        message=f"[device_mac] DELETE: {deleted_info['device_name']} ({deleted_info['device_mac']})",
+        detail=json.dumps({"table": "device_mac", "action": "DELETE", **deleted_info}, ensure_ascii=False),
+    )

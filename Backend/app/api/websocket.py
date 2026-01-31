@@ -84,6 +84,20 @@ async def broadcast_mqtt_message(topic: str, payload) -> None:
     })
 
 
+async def broadcast_system_log(message: str, detail: str | None = None, level: str = "info", source: str = "App") -> None:
+    """시스템 로그를 모든 WebSocket 클라이언트에 실시간 전달합니다."""
+    await manager.broadcast({
+        "type": "system_log",
+        "log": {
+            "type": "SYSTEM",
+            "level": level,
+            "source": source,
+            "message": message,
+            "detail": detail,
+        },
+    })
+
+
 @router.websocket("/ws/devices")
 async def websocket_devices(websocket: WebSocket):
     """

@@ -53,6 +53,18 @@ export function useWebSocket(url: string) {
 
         if (message.type === 'pong') return
 
+        // 시스템 로그 (DB 변경 내역) → 실시간 표시
+        if (message.type === 'system_log' && message.log) {
+          logStore.addLog({
+            type: message.log.type || 'SYSTEM',
+            level: message.log.level || 'info',
+            source: message.log.source || 'App',
+            message: message.log.message || '',
+            detail: message.log.detail || null,
+          })
+          return
+        }
+
         // MQTT 브로커에서 실제로 수신한 메시지 → 상세 로그
         if (message.type === 'mqtt_message') {
           logStore.addLog({
