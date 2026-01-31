@@ -78,22 +78,23 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <aside className="fixed left-0 top-[60px] bottom-0 w-[250px] bg-[#111827] border-r border-gray-800 flex flex-col z-40">
-      <nav className="flex-1 py-4 px-3 space-y-2 overflow-y-auto">
+    <aside className="fixed left-0 top-[60px] bottom-0 w-[230px] bg-[#111827] border-r border-gray-800 flex flex-col z-40">
+      <nav className="flex-1 py-6 px-5 space-y-4 overflow-y-auto">
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                isActive
-                  ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-              }`
-            }
+          className={({ isActive }) =>
+            `flex items-center gap-5 px-6 py-5 rounded-3xl text-lg font-bold transition-all duration-200 ${
+            isActive
+              ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+              : 'text-gray-300 hover:text-white hover:bg-gray-800/70'
+          }`
+        }
+
           >
-            <Icon className="w-5 h-5 flex-shrink-0" />
+            <Icon className="w-6 h-6 flex-shrink-0" />
             <span>{label}</span>
           </NavLink>
         ))}

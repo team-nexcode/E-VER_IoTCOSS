@@ -28,10 +28,10 @@ const iconBgMap = {
 export default function StatusCard({ title, value, unit, icon, trend, color }: StatusCardProps) {
   return (
     <div
-      className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-3 sm:p-4 transition-transform hover:scale-[1.02] min-w-0`}
+      className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-4 transition-transform hover:scale-[1.02] min-w-0 h-28 flex flex-col`} style={{ padding: '16px' }}
     >
       <div className="flex items-start justify-between mb-2">
-        <span className="text-xs sm:text-sm text-gray-400 truncate mr-2">{title}</span>
+        <span className="text-xs sm:text-sm text-gray-400 truncate">{title}</span>
         <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex-shrink-0 flex items-center justify-center ${iconBgMap[color]}`}>
           {icon}
         </div>
@@ -40,14 +40,23 @@ export default function StatusCard({ title, value, unit, icon, trend, color }: S
         <span className="text-lg sm:text-xl font-bold text-white truncate">{value}</span>
         {unit && <span className="text-[10px] sm:text-xs text-gray-500 mb-0.5 flex-shrink-0">{unit}</span>}
       </div>
-      {trend && (
-        <div className="mt-1.5 flex items-center gap-1">
-          <span className={`text-[10px] sm:text-xs font-medium ${trend.isPositive ? 'text-green-400' : 'text-red-400'}`}>
-            {trend.isPositive ? '+' : ''}{trend.value}%
-          </span>
-          <span className="text-[10px] sm:text-xs text-gray-600">전일 대비</span>
-        </div>
-      )}
+      <div className="mt-auto h-4 flex items-center gap-1">
+  {trend && (
+    <>
+      <span
+        className={`text-[10px] sm:text-xs font-medium ${
+          trend.isPositive ? 'text-green-400' : 'text-red-400'
+        }`}
+      >
+        {trend.isPositive ? '+' : ''}
+        {trend.value}%
+      </span>
+      <span className="text-[10px] sm:text-xs text-gray-600">
+        전일 대비
+      </span>
+    </>
+  )}
+</div>
     </div>
   );
 }
