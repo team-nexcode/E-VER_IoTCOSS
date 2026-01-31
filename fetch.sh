@@ -7,7 +7,7 @@
 set -e
 
 # ─── 설정 ───
-GITHUB_TOKEN="[여기에_토큰_입력]"
+GITHUB_TOKEN="[GITHUB_TOKEN]"
 REPO_URL="https://secuho:${GITHUB_TOKEN}@github.com/team-nexcode/AIoT.git"
 PROJECT_DIR="/IoTCOSS_NEXCODE"
 FRONTEND_DIR="${PROJECT_DIR}/Frontend"
