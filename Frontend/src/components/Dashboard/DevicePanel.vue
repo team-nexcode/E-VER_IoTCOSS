@@ -69,10 +69,10 @@ const { devices } = storeToRefs(store)
             <span
               :class="[
                 'text-xs font-semibold',
-                device.currentPower > 500 ? 'text-red-400' : device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
+                (device.currentPower * 220) > 500 ? 'text-red-400' : device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
               ]"
             >
-              {{ device.currentPower.toFixed(1) }} A
+              {{ (device.currentPower * 220).toFixed(1) }}W / {{ device.currentPower.toFixed(3) }}A
             </span>
           </div>
           <div class="flex items-center gap-1.5">

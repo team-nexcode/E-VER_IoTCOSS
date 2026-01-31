@@ -66,10 +66,10 @@ const isTop = props.y > 60
             <span
               :class="[
                 'text-sm font-bold',
-                props.device.currentPower > 500 ? 'text-red-400' : props.device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
+                (props.device.currentPower * 220) > 500 ? 'text-red-400' : props.device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
               ]"
             >
-              {{ props.device.currentPower.toFixed(1) }} A
+              {{ (props.device.currentPower * 220).toFixed(1) }}W / {{ props.device.currentPower.toFixed(3) }}A
             </span>
           </div>
 
