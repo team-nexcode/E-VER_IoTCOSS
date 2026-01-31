@@ -34,9 +34,9 @@ const router = createRouter({
           component: () => import('@/pages/Alerts.vue'),
         },
         {
-          path: 'api-logs',
-          name: 'api-logs',
-          component: () => import('@/pages/ApiLogs.vue'),
+          path: 'system-log',
+          name: 'system-log',
+          component: () => import('@/pages/SystemLog.vue'),
         },
         {
           path: 'settings',
