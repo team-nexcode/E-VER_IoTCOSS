@@ -13,7 +13,9 @@
       "Bash(npm view:*)",
       "Bash(node -e:*)",
       "Bash(npx vue-tsc:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)"
     ]
   }
 }

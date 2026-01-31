@@ -16,16 +16,22 @@ from app.schemas.device_mac import (
     DeviceMacUpdate,
 )
 
-router = APIRouter(prefix="/api/device-mac", tags=["디바이스 MAC"])
+router = APIRouter(prefix="/api/device_mac", tags=["디바이스 MAC"])
 
 
 @router.get("/", response_model=DeviceMacListResponse, summary="디바이스 MAC 전체 목록 조회")
 async def get_device_macs(db: AsyncSession = Depends(get_db)):
     """등록된 모든 디바이스 MAC 목록을 반환합니다."""
+    count_result = await db.execute(select(func.count(DeviceMac.id)))
+    total = count_result.scalar() or 0
+
     result = await db.execute(select(DeviceMac).order_by(DeviceMac.id))
     devices = result.scalars().all()
-    total = await db.scalar(select(func.count()).select_from(DeviceMac))
-    return DeviceMacListResponse(items=devices, total=total or 0)
+
+    return DeviceMacListResponse(
+        items=[DeviceMacResponse.model_validate(d) for d in devices],
+        total=total,
+    )
 
 
 @router.post("/", response_model=DeviceMacResponse, status_code=status.HTTP_201_CREATED, summary="디바이스 MAC 등록")

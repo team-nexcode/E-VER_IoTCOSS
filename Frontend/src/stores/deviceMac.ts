@@ -9,7 +9,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
   async function fetchDevices() {
     loading.value = true
     try {
-      const res = await fetch('/api/device-mac/')
+      const res = await fetch('/api/device_mac/')
       if (!res.ok) return
       const data = await res.json()
       devices.value = (data.items || []).map((item: Record<string, unknown>) => ({
@@ -27,7 +27,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
   }
 
   async function addDevice(data: { deviceName: string; deviceMac: string; location: string }) {
-    const res = await fetch('/api/device-mac/', {
+    const res = await fetch('/api/device_mac/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -49,7 +49,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
     if (data.deviceMac !== undefined) body.device_mac = data.deviceMac
     if (data.location !== undefined) body.location = data.location
 
-    const res = await fetch(`/api/device-mac/${id}`, {
+    const res = await fetch(`/api/device_mac/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -62,7 +62,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
   }
 
   async function deleteDevice(id: number) {
-    const res = await fetch(`/api/device-mac/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/device_mac/${id}`, { method: 'DELETE' })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || '삭제 실패')

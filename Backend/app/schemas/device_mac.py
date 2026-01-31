@@ -6,7 +6,7 @@ API 요청/응답 데이터의 유효성 검사 및 직렬화를 담당합니다
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DeviceMacCreate(BaseModel):
@@ -31,7 +31,7 @@ class DeviceMacResponse(BaseModel):
     location: str
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeviceMacListResponse(BaseModel):
