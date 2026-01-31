@@ -12,7 +12,8 @@
       "Bash(npm run build:*)",
       "Bash(npm view:*)",
       "Bash(node -e:*)",
-      "Bash(npx vue-tsc:*)"
+      "Bash(npx vue-tsc:*)",
+      "Bash(tree:*)"
     ]
   }
 }
