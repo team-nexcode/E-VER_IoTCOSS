@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { Power, Thermometer, Zap, Wifi, WifiOff } from 'lucide-vue-next'
+import { Power, Thermometer, Droplets, Zap, Wifi, WifiOff } from 'lucide-vue-next'
 import type { Device } from '@/types/device'
-import { useDeviceStore } from '@/stores/device'
 
 const props = defineProps<{
   device: Device
   x: number
   y: number
 }>()
-
-const store = useDeviceStore()
 
 const isLeft = props.x > 50
 const isTop = props.y > 60
@@ -72,7 +69,7 @@ const isTop = props.y > 60
                 props.device.currentPower > 500 ? 'text-red-400' : props.device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
               ]"
             >
-              {{ props.device.currentPower.toFixed(1) }} W
+              {{ props.device.currentPower.toFixed(1) }} A
             </span>
           </div>
 
@@ -92,27 +89,36 @@ const isTop = props.y > 60
             </span>
           </div>
 
-          <!-- On/Off 상태 + 토글 -->
+          <!-- 습도 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <Droplets class="w-4 h-4 text-sky-400" />
+              <span class="text-xs text-gray-400">습도</span>
+            </div>
+            <span class="text-sm font-bold text-sky-400">
+              {{ props.device.humidity.toFixed(1) }}%
+            </span>
+          </div>
+
+          <!-- On/Off 상태 (표시 전용) -->
           <div class="flex items-center justify-between pt-1">
             <div class="flex items-center gap-2">
               <Power class="w-4 h-4 text-blue-400" />
               <span class="text-xs text-gray-400">상태</span>
             </div>
-            <button
-              :disabled="!props.device.isOnline"
+            <span
               :class="[
-                'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all',
+                'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium',
                 !props.device.isOnline
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  ? 'bg-gray-700 text-gray-500'
                   : props.device.isActive
-                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
-                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 border border-gray-600/30',
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-gray-700/50 text-gray-400 border border-gray-600/30',
               ]"
-              @click="store.toggleDevice(props.device.id)"
             >
               <div :class="['w-1.5 h-1.5 rounded-full', props.device.isActive && props.device.isOnline ? 'bg-green-400' : 'bg-gray-500']" />
               {{ !props.device.isOnline ? '오프라인' : props.device.isActive ? 'ON' : 'OFF' }}
-            </button>
+            </span>
           </div>
         </div>
       </div>

@@ -1,13 +1,14 @@
 export interface Device {
   id: number;
   name: string;
+  deviceMac: string;
   location: string;
-  mqttTopic: string;
   isActive: boolean;
   currentPower: number;
   temperature: number;
+  humidity: number;
+  relayStatus: string | null;
   isOnline: boolean;
-  createdAt: string;
   updatedAt: string;
 }
 

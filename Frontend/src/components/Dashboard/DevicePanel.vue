@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Zap, Thermometer, Power, Wifi, WifiOff } from 'lucide-vue-next'
+import { Zap, Thermometer, Droplets, Power, Wifi, WifiOff } from 'lucide-vue-next'
 import { useDeviceStore } from '@/stores/device'
 import { storeToRefs } from 'pinia'
 import PowerChart from './PowerChart.vue'
@@ -62,8 +62,8 @@ const { devices } = storeToRefs(store)
           </span>
         </div>
 
-        <!-- 전력 / 온도 -->
-        <div class="flex items-center gap-4 mb-3">
+        <!-- 전력 / 온도 / 습도 -->
+        <div class="flex items-center gap-4 mb-3 flex-wrap">
           <div class="flex items-center gap-1.5">
             <Zap class="w-3.5 h-3.5 text-yellow-400" />
             <span
@@ -72,7 +72,7 @@ const { devices } = storeToRefs(store)
                 device.currentPower > 500 ? 'text-red-400' : device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
               ]"
             >
-              {{ device.currentPower.toFixed(1) }} W
+              {{ device.currentPower.toFixed(1) }} A
             </span>
           </div>
           <div class="flex items-center gap-1.5">
@@ -86,29 +86,33 @@ const { devices } = storeToRefs(store)
               {{ device.temperature.toFixed(1) }}°C
             </span>
           </div>
+          <div class="flex items-center gap-1.5">
+            <Droplets class="w-3.5 h-3.5 text-sky-400" />
+            <span class="text-xs font-semibold text-sky-400">
+              {{ device.humidity.toFixed(1) }}%
+            </span>
+          </div>
         </div>
 
-        <!-- On/Off 토글 -->
+        <!-- On/Off 상태 표시 (표시 전용) -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5">
             <Power class="w-3.5 h-3.5 text-blue-400" />
             <span class="text-[10px] text-gray-400">전원</span>
           </div>
-          <button
-            :disabled="!device.isOnline"
+          <span
             :class="[
-              'flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all',
+              'flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium',
               !device.isOnline
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                ? 'bg-gray-700 text-gray-500'
                 : device.isActive
-                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
-                  : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 border border-gray-600/30',
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-gray-700/50 text-gray-400 border border-gray-600/30',
             ]"
-            @click.stop="store.toggleDevice(device.id)"
           >
             <div :class="['w-1.5 h-1.5 rounded-full', device.isActive && device.isOnline ? 'bg-green-400' : 'bg-gray-500']" />
             {{ !device.isOnline ? '오프라인' : device.isActive ? 'ON' : 'OFF' }}
-          </button>
+          </span>
         </div>
       </div>
     </div>

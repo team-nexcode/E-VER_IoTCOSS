@@ -18,7 +18,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -192,7 +192,7 @@ async def lifespan(app: FastAPI):
                                     await session.commit()
                                     logger.info(f"디바이스 센서 데이터 저장: {mac_entry.device_name} ({mac_addr})")
 
-                                    # WebSocket 실시간 브로드캐스트
+                                    # WebSocket 실시간 브로드캐스트 (시스템 로그)
                                     await broadcast_system_log(
                                         message=f"[devices] INSERT: {mac_entry.device_name} ({mac_addr})",
                                         detail=json.dumps({
@@ -207,6 +207,18 @@ async def lifespan(app: FastAPI):
                                             "timestamp": str(parsed_ts) if parsed_ts else None,
                                         }, ensure_ascii=False),
                                     )
+
+                                    # WebSocket 실시간 브로드캐스트 (디바이스 센서 업데이트)
+                                    await broadcast_device_update({
+                                        "device_mac": mac_addr,
+                                        "device_name": mac_entry.device_name,
+                                        "location": mac_entry.location,
+                                        "temperature": device_entry.temperature,
+                                        "humidity": device_entry.humidity,
+                                        "energy_amp": device_entry.energy_amp,
+                                        "relay_status": device_entry.relay_status,
+                                        "timestamp": str(parsed_ts) if parsed_ts else None,
+                                    })
                     except Exception as e:
                         logger.error(f"디바이스 센서 데이터 저장 실패: {e}")
 

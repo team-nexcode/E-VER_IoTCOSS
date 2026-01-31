@@ -2,227 +2,109 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { Device, OutletPosition, PowerSummary, DailyPowerPoint } from '../types/device'
 
-const mockDevices: Device[] = [
-  {
-    id: 1,
-    name: '거실 TV',
-    location: '거실',
-    mqttTopic: '/oneM2M/req/Mobius/SOrigin_nexcode/1',
-    isActive: true,
-    currentPower: 120.5,
-    temperature: 32.1,
-    isOnline: true,
-    createdAt: '2026-01-27T00:00:00Z',
-    updatedAt: '2026-01-27T12:00:00Z',
-  },
-  {
-    id: 2,
-    name: '주방 전자레인지',
-    location: '주방',
-    mqttTopic: '/oneM2M/req/Mobius/SOrigin_nexcode/2',
-    isActive: false,
-    currentPower: 0,
-    temperature: 25.3,
-    isOnline: true,
-    createdAt: '2026-01-27T00:00:00Z',
-    updatedAt: '2026-01-27T12:00:00Z',
-  },
-  {
-    id: 3,
-    name: '침실 에어컨',
-    location: '침실',
-    mqttTopic: '/oneM2M/req/Mobius/SOrigin_nexcode/3',
-    isActive: true,
-    currentPower: 850.2,
-    temperature: 38.7,
-    isOnline: true,
-    createdAt: '2026-01-27T00:00:00Z',
-    updatedAt: '2026-01-27T12:00:00Z',
-  },
-  {
-    id: 4,
-    name: '서재 컴퓨터',
-    location: '서재',
-    mqttTopic: '/oneM2M/req/Mobius/SOrigin_nexcode/4',
-    isActive: true,
-    currentPower: 350.0,
-    temperature: 41.2,
-    isOnline: false,
-    createdAt: '2026-01-27T00:00:00Z',
-    updatedAt: '2026-01-27T12:00:00Z',
-  },
-  {
-    id: 5,
-    name: '욕실 온풍기',
-    location: '욕실',
-    mqttTopic: '/oneM2M/req/Mobius/SOrigin_nexcode/5',
-    isActive: true,
-    currentPower: 1200.0,
-    temperature: 45.5,
-    isOnline: true,
-    createdAt: '2026-01-27T00:00:00Z',
-    updatedAt: '2026-01-27T12:00:00Z',
-  },
-]
-
-const mockOutletPositions: OutletPosition[] = [
-  { id: 1, deviceId: 1, x: 22, y: 45, room: '거실' },
-  { id: 2, deviceId: 2, x: 65, y: 30, room: '주방' },
-  { id: 3, deviceId: 3, x: 22, y: 78, room: '침실' },
-  { id: 4, deviceId: 4, x: 65, y: 78, room: '서재' },
-  { id: 5, deviceId: 5, x: 88, y: 45, room: '욕실' },
-]
-
-const mockDailyPowerTotal: DailyPowerPoint[] = [
-  { date: '1/24', power: 14.2 },
-  { date: '1/25', power: 16.8 },
-  { date: '1/26', power: 12.5 },
-  { date: '1/27', power: 15.2 },
-  { date: '1/28', power: 11.9 },
-  { date: '1/29', power: 13.7 },
-  { date: '1/30', power: 8.7 },
-]
-
-const mockDailyPowerByDevice: Record<number, DailyPowerPoint[]> = {
-  1: [
-    { date: '1/24', power: 2.8 },
-    { date: '1/25', power: 3.1 },
-    { date: '1/26', power: 2.4 },
-    { date: '1/27', power: 3.0 },
-    { date: '1/28', power: 2.2 },
-    { date: '1/29', power: 2.7 },
-    { date: '1/30', power: 1.5 },
-  ],
-  2: [
-    { date: '1/24', power: 1.8 },
-    { date: '1/25', power: 2.5 },
-    { date: '1/26', power: 1.2 },
-    { date: '1/27', power: 1.9 },
-    { date: '1/28', power: 1.5 },
-    { date: '1/29', power: 1.1 },
-    { date: '1/30', power: 0.8 },
-  ],
-  3: [
-    { date: '1/24', power: 5.1 },
-    { date: '1/25', power: 6.3 },
-    { date: '1/26', power: 4.8 },
-    { date: '1/27', power: 5.5 },
-    { date: '1/28', power: 4.2 },
-    { date: '1/29', power: 5.8 },
-    { date: '1/30', power: 3.6 },
-  ],
-  4: [
-    { date: '1/24', power: 2.3 },
-    { date: '1/25', power: 2.7 },
-    { date: '1/26', power: 2.1 },
-    { date: '1/27', power: 2.8 },
-    { date: '1/28', power: 2.0 },
-    { date: '1/29', power: 2.1 },
-    { date: '1/30', power: 1.3 },
-  ],
-  5: [
-    { date: '1/24', power: 2.2 },
-    { date: '1/25', power: 2.2 },
-    { date: '1/26', power: 2.0 },
-    { date: '1/27', power: 2.0 },
-    { date: '1/28', power: 2.0 },
-    { date: '1/29', power: 2.0 },
-    { date: '1/30', power: 1.5 },
-  ],
+const defaultCoords: Record<string, { x: number; y: number }> = {
+  '거실': { x: 22, y: 45 },
+  '주방': { x: 65, y: 30 },
+  '침실': { x: 22, y: 78 },
+  '서재': { x: 65, y: 78 },
+  '욕실': { x: 88, y: 45 },
 }
 
-function calcSummary(devices: Device[]): PowerSummary {
-  return {
-    totalPower: devices.reduce((sum, d) => sum + d.currentPower, 0),
-    monthlyEnergy: 245.8,
-    yesterdayEnergy: 13.7,
-    todayEnergy: 8.7,
-    activeDevices: devices.filter((d) => d.isActive).length,
-    totalDevices: devices.length,
-    avgTemperature:
-      devices.reduce((sum, d) => sum + d.temperature, 0) / devices.length,
-    savingsPercent: 18.5,
-    estimatedCost: 32400,
-    peakPower: 2520.7,
+let nextDefaultX = 50
+let nextDefaultY = 50
+
+function getDefaultCoords(location: string): { x: number; y: number } {
+  if (defaultCoords[location]) {
+    return defaultCoords[location]
   }
+  const coords = { x: nextDefaultX, y: nextDefaultY }
+  nextDefaultX = ((nextDefaultX + 15) % 80) + 10
+  nextDefaultY = ((nextDefaultY + 15) % 80) + 10
+  return coords
 }
 
 export const useDeviceStore = defineStore('device', () => {
-  const devices = ref<Device[]>(mockDevices)
-  const outletPositions = ref<OutletPosition[]>(mockOutletPositions)
+  const devices = ref<Device[]>([])
+  const outletPositions = ref<OutletPosition[]>([])
   const selectedDeviceId = ref<number | null>(null)
-  const dailyPowerTotal = ref<DailyPowerPoint[]>(mockDailyPowerTotal)
-  const dailyPowerByDevice = ref<Record<number, DailyPowerPoint[]>>(mockDailyPowerByDevice)
+  const dailyPowerTotal = ref<DailyPowerPoint[]>([])
+  const dailyPowerByDevice = ref<Record<number, DailyPowerPoint[]>>({})
 
-  const powerSummary = computed<PowerSummary>(() => calcSummary(devices.value))
+  const powerSummary = computed<PowerSummary>(() => {
+    const devs = devices.value
+    const total = devs.length
+    const activeCount = devs.filter((d) => d.isActive).length
+    const totalPower = devs.reduce((sum, d) => sum + d.currentPower, 0)
+    const avgTemp = total > 0
+      ? devs.reduce((sum, d) => sum + d.temperature, 0) / total
+      : 0
 
-  function addDevice(name: string, location: string) {
-  // 1. 새 ID 계산
-  const newId = devices.value.length > 0 
-    ? Math.max(...devices.value.map(d => d.id)) + 1 
-    : 1;
+    return {
+      totalPower,
+      monthlyEnergy: 0,
+      yesterdayEnergy: 0,
+      todayEnergy: 0,
+      activeDevices: activeCount,
+      totalDevices: total,
+      avgTemperature: avgTemp,
+      savingsPercent: 0,
+      estimatedCost: 0,
+      peakPower: 0,
+    }
+  })
 
-  // 2. 방 이름에 따른 초기 좌표 (사용자 편의를 위해 미리 세팅)
-  const defaultCoords: Record<string, { x: number, y: number }> = {
-    '거실': { x: 22, y: 45 },
-    '주방': { x: 65, y: 30 },
-    '침실': { x: 22, y: 78 },
-    '서재': { x: 65, y: 78 },
-    '욕실': { x: 88, y: 45 }
-  };
-  const coords = defaultCoords[location] || { x: 50, y: 50 };
+  function setDevices(rawList: Record<string, unknown>[]) {
+    const now = new Date().toISOString()
+    devices.value = rawList.map((d) => ({
+      id: d.id as number,
+      name: (d.device_name as string) ?? '',
+      deviceMac: (d.device_mac as string) ?? '',
+      location: (d.location as string) ?? '',
+      isActive: (d.relay_status as string) === 'on',
+      currentPower: (d.energy_amp as number) ?? 0,
+      temperature: (d.temperature as number) ?? 0,
+      humidity: (d.humidity as number) ?? 0,
+      relayStatus: (d.relay_status as string) ?? null,
+      isOnline: (d.is_online as boolean) ?? false,
+      updatedAt: (d.timestamp as string) ?? now,
+    }))
 
-  // 3. newDevice 객체 생성 (Device 인터페이스의 모든 필드 포함)
-  const newDevice: Device = {
-    id: newId,
-    name: name,
-    location: location,
-    mqttTopic: `/oneM2M/req/Mobius/SOrigin_nexcode/${newId}`,
-    isActive: false,
-    currentPower: 0,
-    temperature: 20.0,
-    isOnline: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+    // 새 디바이스에 대해 outletPosition 자동 생성 (기존 위치는 유지)
+    const existingIds = new Set(outletPositions.value.map((p) => p.deviceId))
+    for (const dev of devices.value) {
+      if (!existingIds.has(dev.id)) {
+        const coords = getDefaultCoords(dev.location)
+        outletPositions.value.push({
+          id: dev.id,
+          deviceId: dev.id,
+          x: coords.x,
+          y: coords.y,
+          room: dev.location,
+        })
+      }
+    }
 
-  // 4. 스토어 상태(State) 업데이트
-  devices.value.push(newDevice);
-
-  // 5. 구조도 위치 데이터 추가
-  outletPositions.value.push({
-    id: newId,
-    deviceId: newId,
-    x: coords.x,
-    y: coords.y,
-    room: location
-  });
-
-  // 6. [중요] 차트 데이터 초기화 (이게 없으면 차트 컴포넌트에서 에러가 납니다)
-  dailyPowerByDevice.value[newId] = [
-    { date: '1/31', power: 0 }
-  ];
-}
-  
-  function removeDevice(id: number) {
-    // 1. 디바이스 삭제
-    devices.value = devices.value.filter(d => d.id !== id);
-    // 2. 관련 위치 데이터 삭제
-    outletPositions.value = outletPositions.value.filter(p => p.deviceId !== id);
-    // 3. 선택된 디바이스가 삭제된 것이라면 선택 해제
-    if (selectedDeviceId.value === id) selectedDeviceId.value = null;
+    // 더 이상 존재하지 않는 디바이스의 위치 데이터 제거
+    const deviceIds = new Set(devices.value.map((d) => d.id))
+    outletPositions.value = outletPositions.value.filter((p) => deviceIds.has(p.deviceId))
   }
 
-  function setDevices(newDevices: Device[]) {
-    devices.value = newDevices
-  }
+  function updateDeviceSensor(data: Record<string, unknown>) {
+    const mac = data.device_mac as string
+    if (!mac) return
 
-  function toggleDevice(id: number) {
-    devices.value = devices.value.map((d) =>
-      d.id === id
-        ? { ...d, isActive: !d.isActive, currentPower: d.isActive ? 0 : Math.random() * 500 + 50 }
-        : d
-    )
+    const device = devices.value.find((d) => d.deviceMac === mac)
+    if (device) {
+      if (data.temperature != null) device.temperature = data.temperature as number
+      if (data.humidity != null) device.humidity = data.humidity as number
+      if (data.energy_amp != null) device.currentPower = data.energy_amp as number
+      if (data.relay_status !== undefined) {
+        device.relayStatus = data.relay_status as string | null
+        device.isActive = (data.relay_status as string) === 'on'
+      }
+      if (data.timestamp) device.updatedAt = data.timestamp as string
+      device.isOnline = true
+    }
   }
 
   function selectDevice(id: number | null) {
@@ -230,13 +112,12 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   function updatePosition(deviceId: number, x: number, y: number) {
-  const pos = outletPositions.value.find(p => p.deviceId === deviceId)
-  if (pos) {
-    // 0~100 사이로 제한 (이미지 밖으로 나가지 않게)
-    pos.x = Math.max(0, Math.min(100, x))
-    pos.y = Math.max(0, Math.min(100, y))
+    const pos = outletPositions.value.find((p) => p.deviceId === deviceId)
+    if (pos) {
+      pos.x = Math.max(0, Math.min(100, x))
+      pos.y = Math.max(0, Math.min(100, y))
+    }
   }
-}
 
   return {
     devices,
@@ -245,11 +126,9 @@ export const useDeviceStore = defineStore('device', () => {
     powerSummary,
     dailyPowerTotal,
     dailyPowerByDevice,
-    addDevice,
-    removeDevice,
     setDevices,
-    toggleDevice,
+    updateDeviceSensor,
     selectDevice,
-    updatePosition
+    updatePosition,
   }
 })
