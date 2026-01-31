@@ -54,7 +54,7 @@ export function useWebSocket(url: string) {
             id: d.id as number,
             name: (d.name as string) ?? '',
             location: (d.location as string) ?? '',
-            mqttTopic: `iotcoss/device/${d.id}`,
+            mqttTopic: `/oneM2M/req/Mobius/SOrigin_nexcode/${d.id}`,
             isActive: (d.is_active as boolean) ?? false,
             currentPower: (d.current_power as number) ?? 0,
             temperature: (d.temperature as number) ?? 0,
