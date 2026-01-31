@@ -156,6 +156,63 @@ export const useDeviceStore = defineStore('device', () => {
 
   const powerSummary = computed<PowerSummary>(() => calcSummary(devices.value))
 
+  function addDevice(name: string, location: string) {
+  // 1. 새 ID 계산
+  const newId = devices.value.length > 0 
+    ? Math.max(...devices.value.map(d => d.id)) + 1 
+    : 1;
+
+  // 2. 방 이름에 따른 초기 좌표 (사용자 편의를 위해 미리 세팅)
+  const defaultCoords: Record<string, { x: number, y: number }> = {
+    '거실': { x: 22, y: 45 },
+    '주방': { x: 65, y: 30 },
+    '침실': { x: 22, y: 78 },
+    '서재': { x: 65, y: 78 },
+    '욕실': { x: 88, y: 45 }
+  };
+  const coords = defaultCoords[location] || { x: 50, y: 50 };
+
+  // 3. newDevice 객체 생성 (Device 인터페이스의 모든 필드 포함)
+  const newDevice: Device = {
+    id: newId,
+    name: name,
+    location: location,
+    mqttTopic: `iotcoss/device/${newId}`,
+    isActive: false,
+    currentPower: 0,
+    temperature: 20.0,
+    isOnline: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // 4. 스토어 상태(State) 업데이트
+  devices.value.push(newDevice);
+
+  // 5. 구조도 위치 데이터 추가
+  outletPositions.value.push({
+    id: newId,
+    deviceId: newId,
+    x: coords.x,
+    y: coords.y,
+    room: location
+  });
+
+  // 6. [중요] 차트 데이터 초기화 (이게 없으면 차트 컴포넌트에서 에러가 납니다)
+  dailyPowerByDevice.value[newId] = [
+    { date: '1/31', power: 0 }
+  ];
+}
+  
+  function removeDevice(id: number) {
+    // 1. 디바이스 삭제
+    devices.value = devices.value.filter(d => d.id !== id);
+    // 2. 관련 위치 데이터 삭제
+    outletPositions.value = outletPositions.value.filter(p => p.deviceId !== id);
+    // 3. 선택된 디바이스가 삭제된 것이라면 선택 해제
+    if (selectedDeviceId.value === id) selectedDeviceId.value = null;
+  }
+
   function setDevices(newDevices: Device[]) {
     devices.value = newDevices
   }
@@ -172,6 +229,15 @@ export const useDeviceStore = defineStore('device', () => {
     selectedDeviceId.value = id
   }
 
+  function updatePosition(deviceId: number, x: number, y: number) {
+  const pos = outletPositions.value.find(p => p.deviceId === deviceId)
+  if (pos) {
+    // 0~100 사이로 제한 (이미지 밖으로 나가지 않게)
+    pos.x = Math.max(0, Math.min(100, x))
+    pos.y = Math.max(0, Math.min(100, y))
+  }
+}
+
   return {
     devices,
     outletPositions,
@@ -179,8 +245,11 @@ export const useDeviceStore = defineStore('device', () => {
     powerSummary,
     dailyPowerTotal,
     dailyPowerByDevice,
+    addDevice,
+    removeDevice,
     setDevices,
     toggleDevice,
     selectDevice,
+    updatePosition
   }
 })
