@@ -10,8 +10,8 @@ import { Bell, Search, User, Zap } from 'lucide-vue-next'
         <Zap class="w-5 h-5 text-white" />
       </div>
       <div>
-        <h1 class="text-base font-bold text-white leading-tight">IoTCOSS</h1>
-        <p class="text-[10px] text-gray-500 leading-tight">Energy Saving System</p>
+        <h1 class="text-base font-bold text-white leading-tight">E-VER</h1>
+        <p class="text-[10px] text-gray-500 leading-tight">Energy Saver</p>
       </div>
     </div>
 
