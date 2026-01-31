@@ -1,5 +1,36 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { Bell, Search, User, Zap } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+
+const router = useRouter() // 라우터 사용
+const hasNotification = ref(false) // 알람 여부
+const unreadCount = ref(0) // 읽지 않은 알람 개수
+
+// 서버에서 알람 상태 가져오기
+async function fetchNotifications() {
+  try {
+    const res = await fetch('/api/notifications/unread-count') // 실제 API 주소로 변경
+    if (res.ok) {
+      const data = await res.json()
+      unreadCount.value = data.unreadCount
+      hasNotification.value = unreadCount.value > 0
+    } else {
+      hasNotification.value = false
+      unreadCount.value = 0
+    }
+  } catch (error) {
+    console.error('알람 가져오기 실패:', error)
+    hasNotification.value = false
+    unreadCount.value = 0
+  }
+}
+
+onMounted(() => {
+  fetchNotifications()
+  // 10초마다 새로고침
+  setInterval(fetchNotifications, 10000)
+})
 </script>
 
 <template>
@@ -18,19 +49,25 @@ import { Bell, Search, User, Zap } from 'lucide-vue-next'
     <!-- 우측: 검색, 알림, 프로필 -->
     <div class="flex items-center gap-4">
       <!-- 검색 -->
-      <div class="hidden md:flex items-center bg-gray-800 rounded-lg px-3 py-2 gap-2">
-        <Search class="w-4 h-4 text-gray-500" />
+      <div class="hidden md:flex items-center bg-gray-800 rounded-lg px-3 py-3 gap-2">
+        <Search class="w-5 h-5 text-gray-500" />
         <input
           type="text"
           placeholder="검색..."
-          class="bg-transparent text-sm text-gray-300 outline-none w-48 placeholder-gray-600"
+          class="bg-transparent text-sm text-gray-300 outline-none w-48 placeholder-gray-600 h-8"
         />
       </div>
 
       <!-- 알림 벨 -->
-      <button class="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
+      <button
+        class="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+        @click="router.push('/alerts')"
+      >
         <Bell class="w-5 h-5" />
-        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+        <span
+          v-if="hasNotification"
+          class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"
+        />
       </button>
 
       <!-- 사용자 프로필 -->
