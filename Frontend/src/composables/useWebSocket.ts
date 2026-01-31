@@ -44,18 +44,41 @@ export function useWebSocket(url: string) {
 
     ws.onmessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data) as Partial<Device> & { id: number }
-        const devices = store.devices.map((d) =>
-          d.id === data.id ? { ...d, ...data, updatedAt: new Date().toISOString() } : d
-        )
-        store.setDevices(devices)
-        logStore.addLog({
-          type: 'MESSAGE',
-          level: 'info',
-          source: 'MQTT',
-          message: `디바이스 업데이트: ID=${data.id}`,
-          detail: JSON.stringify(data),
-        })
+        const message = JSON.parse(event.data)
+
+        if (message.type === 'pong') return
+
+        if (message.type === 'device_status' && Array.isArray(message.data)) {
+          const now = new Date().toISOString()
+          const updated: Device[] = message.data.map((d: Record<string, unknown>) => ({
+            id: d.id as number,
+            name: (d.name as string) ?? '',
+            location: (d.location as string) ?? '',
+            mqttTopic: `iotcoss/device/${d.id}`,
+            isActive: (d.is_active as boolean) ?? false,
+            currentPower: (d.current_power as number) ?? 0,
+            temperature: (d.temperature as number) ?? 0,
+            isOnline: (d.is_online as boolean) ?? false,
+            createdAt: now,
+            updatedAt: now,
+          }))
+          store.setDevices(updated)
+          logStore.addLog({
+            type: 'MESSAGE',
+            level: 'info',
+            source: 'MQTT',
+            message: `디바이스 상태 수신: ${updated.length}대`,
+            detail: JSON.stringify(message.data),
+          })
+        } else {
+          logStore.addLog({
+            type: 'MESSAGE',
+            level: 'info',
+            source: 'MQTT',
+            message: `메시지 수신: type=${message.type ?? 'unknown'}`,
+            detail: JSON.stringify(message),
+          })
+        }
       } catch {
         logStore.addLog({
           type: 'MESSAGE',
