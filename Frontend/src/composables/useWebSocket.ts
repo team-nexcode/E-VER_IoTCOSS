@@ -23,7 +23,7 @@ export function useWebSocket(url: string) {
       type: 'CONNECTION',
       level: 'info',
       source: 'MQTT',
-      message: `연결 시도: ${url}`,
+      message: `WebSocket 연결 시도: ${url}`,
       detail: JSON.stringify({ url, timestamp: new Date().toISOString() }),
     })
 
@@ -37,8 +37,13 @@ export function useWebSocket(url: string) {
         type: 'CONNECTION',
         level: 'info',
         source: 'MQTT',
-        message: '연결 성공',
-        detail: JSON.stringify({ url, timestamp: new Date().toISOString() }),
+        message: 'WebSocket 연결 성공',
+        detail: JSON.stringify({
+          url,
+          broker: logStore.mqttBroker || '(조회 중)',
+          topic: logStore.mqttTopic || '(조회 중)',
+          timestamp: new Date().toISOString(),
+        }),
       })
     }
 
@@ -48,6 +53,25 @@ export function useWebSocket(url: string) {
 
         if (message.type === 'pong') return
 
+        // MQTT 브로커에서 실제로 수신한 메시지 → 상세 로그
+        if (message.type === 'mqtt_message') {
+          logStore.addLog({
+            type: 'MESSAGE',
+            level: 'info',
+            source: 'MQTT',
+            message: `토픽: ${message.topic}`,
+            detail: JSON.stringify({
+              broker: message.broker,
+              topic: message.topic,
+              subscribe_filter: message.subscribe_filter,
+              payload: message.payload,
+              received_at: new Date().toISOString(),
+            }, null, 2),
+          })
+          return
+        }
+
+        // 디바이스 상태 (연결 직후 1회) → 디바이스 업데이트만, 로그 안 남김
         if (message.type === 'device_status' && Array.isArray(message.data)) {
           const now = new Date().toISOString()
           const updated: Device[] = message.data.map((d: Record<string, unknown>) => ({
@@ -63,25 +87,12 @@ export function useWebSocket(url: string) {
             updatedAt: now,
           }))
           store.setDevices(updated)
-          logStore.addLog({
-            type: 'MESSAGE',
-            level: 'info',
-            source: 'MQTT',
-            message: `디바이스 상태 수신: ${updated.length}대`,
-            detail: JSON.stringify(message.data),
-          })
-        } else {
-          logStore.addLog({
-            type: 'MESSAGE',
-            level: 'info',
-            source: 'MQTT',
-            message: `메시지 수신: type=${message.type ?? 'unknown'}`,
-            detail: JSON.stringify(message),
-          })
+          return
         }
+
       } catch {
         logStore.addLog({
-          type: 'MESSAGE',
+          type: 'ERROR',
           level: 'warn',
           source: 'MQTT',
           message: '파싱 불가 메시지 수신',

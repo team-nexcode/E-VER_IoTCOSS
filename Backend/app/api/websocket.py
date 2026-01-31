@@ -1,6 +1,6 @@
 """
 WebSocket 엔드포인트
-실시간 디바이스 상태 스트리밍을 제공합니다.
+실시간 디바이스 상태 스트리밍 + MQTT 메시지 전달
 """
 
 import asyncio
@@ -12,7 +12,9 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.models.device import Device
+from app.config import get_settings
 
+settings = get_settings()
 router = APIRouter(tags=["WebSocket"])
 
 
@@ -20,33 +22,28 @@ class ConnectionManager:
     """WebSocket 연결 관리 클래스"""
 
     def __init__(self):
-        # 활성 WebSocket 연결 목록
         self.active_connections: List[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        """새로운 WebSocket 연결을 수락하고 목록에 추가합니다."""
         await websocket.accept()
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        """WebSocket 연결을 목록에서 제거합니다."""
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        """모든 활성 연결에 메시지를 브로드캐스트합니다."""
         disconnected = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception:
                 disconnected.append(connection)
-
-        # 연결이 끊긴 클라이언트 제거
         for conn in disconnected:
-            self.active_connections.remove(conn)
+            if conn in self.active_connections:
+                self.active_connections.remove(conn)
 
     async def send_personal_message(self, message: dict, websocket: WebSocket):
-        """특정 클라이언트에게 메시지를 전송합니다."""
         await websocket.send_json(message)
 
 
@@ -73,35 +70,42 @@ async def get_all_device_status() -> list:
         ]
 
 
+async def broadcast_mqtt_message(topic: str, payload) -> None:
+    """MQTT 메시지를 모든 WebSocket 클라이언트에 전달합니다."""
+    await manager.broadcast({
+        "type": "mqtt_message",
+        "broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
+        "topic": topic,
+        "subscribe_filter": settings.MQTT_TOPIC,
+        "payload": payload,
+    })
+
+
 @router.websocket("/ws/devices")
 async def websocket_devices(websocket: WebSocket):
     """
     디바이스 실시간 상태 스트리밍 WebSocket 엔드포인트
-    연결된 클라이언트에게 주기적으로 디바이스 상태를 전송합니다.
+    - 연결 시 현재 디바이스 상태 1회 전송
+    - 이후 클라이언트 ping 에만 응답 (MQTT 메시지는 broadcast로 전달)
     """
     await manager.connect(websocket)
+
+    # 연결 직후 현재 디바이스 상태 1회 전송
+    devices_status = await get_all_device_status()
+    await manager.send_personal_message(
+        {"type": "device_status", "data": devices_status},
+        websocket,
+    )
+
     try:
         while True:
+            data = await websocket.receive_text()
             try:
-                # 클라이언트로부터 메시지 수신 (ping/pong 또는 제어 명령)
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
-                # 클라이언트 메시지 처리 (향후 확장 가능)
                 message = json.loads(data)
                 if message.get("type") == "ping":
                     await manager.send_personal_message({"type": "pong"}, websocket)
-            except asyncio.TimeoutError:
+            except json.JSONDecodeError:
                 pass
-
-            # 모든 디바이스 상태를 조회하여 브로드캐스트
-            devices_status = await get_all_device_status()
-            await manager.send_personal_message(
-                {
-                    "type": "device_status",
-                    "data": devices_status,
-                },
-                websocket,
-            )
-
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:
