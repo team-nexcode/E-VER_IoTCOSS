@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # MQTT 브로커 설정
     MQTT_BROKER: str = "localhost"
     MQTT_PORT: int = 1883
+    MQTT_TOPIC: str = "/oneM2M/req/Mobius/SOrigin_nexcode/#"
 
     # JWT 인증 설정
     SECRET_KEY: str = "your-secret-key-change-in-production"
