@@ -189,7 +189,7 @@ async function confirmModal() {
   const timeStr = `${hh}:${mm}:00`
 
   // 선택된 device_mac 찾기
-  const selectedDevice = deviceMacStore.deviceMacs.find(d => d.id === selectedDeviceId.value)
+  const selectedDevice = deviceMacs.value.find(d => d.id === selectedDeviceId.value)
   if (!selectedDevice) return
 
   // ON 스케줄: start_time을 설정, end_time은 23:59:59
