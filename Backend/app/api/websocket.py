@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -112,13 +112,22 @@ def invalidate_device_mac_cache() -> None:
 
 # ── 전력량 계산 ──
 
-async def calculate_energy_kwh(start_time: datetime, end_time: datetime) -> float:
-    """주어진 기간의 총 전력량(kWh)을 사다리꼴 적분으로 계산합니다."""
+async def calculate_energy_kwh(from_date: date, to_date: date | None = None) -> float:
+    """주어진 날짜 범위의 총 전력량(kWh)을 사다리꼴 적분으로 계산합니다.
+    서버 시간 기준 일자(DATE)만 비교하여 레코드를 필터링합니다.
+    to_date가 None이면 from_date 하루만 계산합니다."""
+    if to_date is None:
+        to_date = from_date
+
+    # 날짜를 datetime 범위로 변환 (from_date 00:00:00 <= timestamp < to_date+1 00:00:00)
+    start_dt = datetime.combine(from_date, datetime.min.time())
+    end_dt = datetime.combine(to_date + timedelta(days=1), datetime.min.time())
+
     async with async_session() as session:
         result = await session.execute(
             select(Device.device_mac, Device.energy_amp, Device.timestamp)
-            .where(Device.timestamp >= start_time)
-            .where(Device.timestamp <= end_time)
+            .where(Device.timestamp >= start_dt)
+            .where(Device.timestamp < end_dt)
             .where(Device.energy_amp.isnot(None))
             .where(Device.timestamp.isnot(None))
             .order_by(Device.device_mac, Device.timestamp)
@@ -146,16 +155,16 @@ async def calculate_energy_kwh(start_time: datetime, end_time: datetime) -> floa
 
 
 async def get_power_summary() -> dict:
-    """이번 달 / 어제 / 오늘 전력량(kWh)을 반환합니다."""
-    now = datetime.now()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday_start = today_start - timedelta(days=1)
-    month_start = today_start.replace(day=1)
+    """이번 달 / 어제 / 오늘 전력량(kWh)을 반환합니다.
+    서버 시간 기준 일자(DATE)로 오늘/어제를 구분합니다."""
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+    month_start = today.replace(day=1)
 
     today_kwh = get_today_energy_kwh()
     monthly_energy, yesterday_energy = await asyncio.gather(
-        calculate_energy_kwh(month_start, now),
-        calculate_energy_kwh(yesterday_start, today_start),
+        calculate_energy_kwh(month_start, today),
+        calculate_energy_kwh(yesterday),
     )
 
     return {
@@ -173,13 +182,14 @@ _last_energy_readings: dict[str, tuple[float, datetime]] = {}
 
 
 async def init_energy_accumulator() -> None:
-    """서버 시작 시 오늘 전력량을 DB에서 계산하여 누적기를 초기화합니다."""
+    """서버 시작 시 오늘 전력량을 DB에서 계산하여 누적기를 초기화합니다.
+    서버 시간 기준 오늘 일자(DATE)에 해당하는 레코드만 사용합니다."""
     global _today_energy_wh, _today_date, _last_energy_readings
-    now = datetime.now()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now().date()
+    today_start = datetime.combine(today, datetime.min.time())
 
-    _today_energy_wh = (await calculate_energy_kwh(today_start, now)) * 1000
-    _today_date = now.date()
+    _today_energy_wh = (await calculate_energy_kwh(today)) * 1000
+    _today_date = today
     _last_energy_readings = {}
 
     # 디바이스별 마지막 읽기값 로드 (이후 증분 계산용)
