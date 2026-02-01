@@ -68,6 +68,7 @@ export const useDeviceStore = defineStore('device', () => {
       deviceMac: (d.device_mac as string) ?? '',
       location: (d.location as string) ?? '',
       isActive: (d.relay_status as string) === 'on',
+      desiredState: (d.relay_status as string) === 'on', // 초기값은 실제 상태와 동일
       currentPower: (d.energy_amp as number) ?? 0,
       temperature: (d.temperature as number) ?? 0,
       humidity: (d.humidity as number) ?? 0,
@@ -140,7 +141,11 @@ export const useDeviceStore = defineStore('device', () => {
     const device = devices.value.find((d) => d.deviceMac === deviceMac)
     if (!device) return
 
-    const newState = device.isActive ? 'off' : 'on'
+    const newState = !device.desiredState
+    const newStateStr = newState ? 'on' : 'off'
+
+    // 토글 스위치 UI 즉시 업데이트
+    device.desiredState = newState
 
     try {
       const response = await fetch('/api/devices/power/control', {
@@ -150,16 +155,20 @@ export const useDeviceStore = defineStore('device', () => {
         },
         body: JSON.stringify({
           mac_address: deviceMac,
-          power_state: newState,
+          power_state: newStateStr,
         }),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
+        // 실패 시 토글 원래대로 복구
+        device.desiredState = !newState
         alert(`전원 제어에 실패했습니다.\n상태: ${response.status}\n에러: ${errorText}`)
       }
-      // UI는 MQTT 메시지가 도착할 때 updateDeviceSensor()에서 자동으로 업데이트됨
+      // 실제 기기 상태(isActive)는 MQTT 메시지가 도착할 때 updateDeviceSensor()에서 업데이트됨
     } catch (error) {
+      // 예외 발생 시 토글 원래대로 복구
+      device.desiredState = !newState
       alert(`전원 제어 중 오류가 발생했습니다.\n${error}`)
     }
   }

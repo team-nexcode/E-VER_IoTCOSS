@@ -120,23 +120,33 @@ const { devices } = storeToRefs(store)
             </span>
           </div>
           
-          <!-- 전원 제어 버튼 -->
-          <button
-            @click.stop="store.toggleDevicePower(device.deviceMac)"
-            :disabled="!device.isOnline"
-            :class="[
-              'px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200',
-              'flex items-center gap-1.5',
-              !device.isOnline
-                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                : device.isActive
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
-                  : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30',
-            ]"
-          >
-            <Power class="w-3 h-3" />
-            <span>{{ device.isActive ? 'OFF' : 'ON' }}</span>
-          </button>
+          <!-- 전원 제어 토글 스위치 -->
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-gray-500">제어</span>
+            <button
+              @click.stop="store.toggleDevicePower(device.deviceMac)"
+              :disabled="!device.isOnline"
+              :class="[
+                'relative w-12 h-6 rounded-full transition-all duration-300',
+                !device.isOnline
+                  ? 'bg-gray-700 cursor-not-allowed'
+                  : device.desiredState
+                    ? 'bg-green-500'
+                    : 'bg-gray-600',
+              ]"
+            >
+              <div
+                :class="[
+                  'absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 shadow-md',
+                  !device.isOnline
+                    ? 'bg-gray-500 left-0.5'
+                    : device.desiredState
+                      ? 'bg-white left-6'
+                      : 'bg-white left-0.5',
+                ]"
+              />
+            </button>
+          </div>
         </div>
       </div>
     </div>
