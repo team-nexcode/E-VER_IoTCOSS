@@ -25,9 +25,12 @@ class DeviceMac(Base):
     location: Mapped[str] = mapped_column(
         String(100), nullable=False, comment="설치 위치"
     )
+    desired_state: Mapped[str | None] = mapped_column(
+        String(10), nullable=True, default="off", comment="제어 명령 상태 (on/off) - 우리가 보낸 명령"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False, comment="등록 시각"
     )
 
     def __repr__(self) -> str:
-        return f"<DeviceMac(id={self.id}, name='{self.device_name}', mac='{self.device_mac}')>"
+        return f"<DeviceMac(id={self.id}, name='{self.device_name}', mac='{self.device_mac}', desired='{self.desired_state}')>"

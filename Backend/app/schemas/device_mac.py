@@ -29,6 +29,7 @@ class DeviceMacResponse(BaseModel):
     device_name: str
     device_mac: str
     location: str
+    desired_state: Optional[str] = Field(None, description="제어 명령 상태 (on/off)")
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
