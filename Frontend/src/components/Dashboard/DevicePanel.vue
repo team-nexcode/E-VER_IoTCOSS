@@ -66,7 +66,7 @@ const { devices } = storeToRefs(store)
         <div class="flex items-center gap-4 mb-3 flex-wrap">
           <div class="flex items-center gap-1.5">
             <Zap class="w-3.5 h-3.5 text-yellow-400" />
-            <span
+            <span v-if="device.isOnline"
               :class="[
                 'text-xs font-semibold',
                 (device.currentPower * 220) > 500 ? 'text-red-400' : device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
@@ -74,10 +74,11 @@ const { devices } = storeToRefs(store)
             >
               {{ (device.currentPower * 220).toFixed(1) }}W / {{ device.currentPower.toFixed(3) }}A
             </span>
+            <span v-else class="text-xs font-semibold text-gray-600">--</span>
           </div>
           <div class="flex items-center gap-1.5">
             <Thermometer class="w-3.5 h-3.5 text-orange-400" />
-            <span
+            <span v-if="device.isOnline"
               :class="[
                 'text-xs font-semibold',
                 device.temperature > 40 ? 'text-red-400' : device.temperature > 35 ? 'text-orange-400' : 'text-green-400',
@@ -85,12 +86,14 @@ const { devices } = storeToRefs(store)
             >
               {{ device.temperature.toFixed(1) }}°C
             </span>
+            <span v-else class="text-xs font-semibold text-gray-600">--</span>
           </div>
           <div class="flex items-center gap-1.5">
             <Droplets class="w-3.5 h-3.5 text-sky-400" />
-            <span class="text-xs font-semibold text-sky-400">
+            <span v-if="device.isOnline" class="text-xs font-semibold text-sky-400">
               {{ device.humidity.toFixed(1) }}%
             </span>
+            <span v-else class="text-xs font-semibold text-gray-600">--</span>
           </div>
         </div>
 

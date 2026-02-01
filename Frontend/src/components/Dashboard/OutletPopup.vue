@@ -63,7 +63,7 @@ const isTop = props.y > 60
               <Zap class="w-4 h-4 text-yellow-400" />
               <span class="text-xs text-gray-400">전력</span>
             </div>
-            <span
+            <span v-if="props.device.isOnline"
               :class="[
                 'text-sm font-bold',
                 (props.device.currentPower * 220) > 500 ? 'text-red-400' : props.device.currentPower > 0 ? 'text-yellow-400' : 'text-gray-500',
@@ -71,6 +71,7 @@ const isTop = props.y > 60
             >
               {{ (props.device.currentPower * 220).toFixed(1) }}W / {{ props.device.currentPower.toFixed(3) }}A
             </span>
+            <span v-else class="text-sm font-bold text-gray-600">--</span>
           </div>
 
           <!-- 온도 -->
@@ -79,7 +80,7 @@ const isTop = props.y > 60
               <Thermometer class="w-4 h-4 text-orange-400" />
               <span class="text-xs text-gray-400">온도</span>
             </div>
-            <span
+            <span v-if="props.device.isOnline"
               :class="[
                 'text-sm font-bold',
                 props.device.temperature > 40 ? 'text-red-400' : props.device.temperature > 35 ? 'text-orange-400' : 'text-green-400',
@@ -87,6 +88,7 @@ const isTop = props.y > 60
             >
               {{ props.device.temperature.toFixed(1) }}°C
             </span>
+            <span v-else class="text-sm font-bold text-gray-600">--</span>
           </div>
 
           <!-- 습도 -->
@@ -95,9 +97,10 @@ const isTop = props.y > 60
               <Droplets class="w-4 h-4 text-sky-400" />
               <span class="text-xs text-gray-400">습도</span>
             </div>
-            <span class="text-sm font-bold text-sky-400">
+            <span v-if="props.device.isOnline" class="text-sm font-bold text-sky-400">
               {{ props.device.humidity.toFixed(1) }}%
             </span>
+            <span v-else class="text-sm font-bold text-gray-600">--</span>
           </div>
 
           <!-- On/Off 상태 (표시 전용) -->
