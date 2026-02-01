@@ -15,7 +15,12 @@
       "Bash(npx vue-tsc:*)",
       "Bash(tree:*)",
       "Bash(curl:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(pip3:*)",
+      "Bash(PGPASSWORD=password psql:*)",
+      "Bash(conda list:*)",
+      "Bash(/tmp/db_check_venv/bin/pip install:*)",
+      "Bash(/tmp/db_check_venv/bin/python3:*)"
     ]
   }
 }

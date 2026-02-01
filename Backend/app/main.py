@@ -19,7 +19,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker, init_energy_accumulator, accumulate_energy, calculate_energy_kwh
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -61,6 +61,10 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("데이터베이스 테이블 초기화 완료")
+
+    # 전력량 누적기 초기화 + 오프라인 감지 백그라운드 태스크 시작
+    await init_energy_accumulator()
+    offline_checker_task = start_offline_checker()
 
     # MQTT 브로커 연결 시도
     mqtt_listen_task = None
@@ -114,6 +118,8 @@ async def lifespan(app: FastAPI):
                     if mac_addr:
                         mac_info = await get_cached_device_mac(mac_addr)
                         if mac_info:
+                            update_device_last_seen(mac_addr)
+
                             con = cin.get("con", {})
                             if isinstance(con, str):
                                 try:
@@ -121,15 +127,22 @@ async def lifespan(app: FastAPI):
                                 except Exception:
                                     con = {}
 
+                            energy_amp = float(con["energy"]) if "energy" in con else None
+
+                            # 오늘 전력량 실시간 누적
+                            today_kwh = accumulate_energy(mac_addr, energy_amp, parsed_ts)
+
                             update_data = {
                                 "device_mac": mac_addr,
                                 "device_name": mac_info["device_name"],
                                 "location": mac_info["location"],
                                 "temperature": float(con["temp"]) if "temp" in con else None,
                                 "humidity": float(con["humi"]) if "humi" in con else None,
-                                "energy_amp": float(con["energy"]) if "energy" in con else None,
+                                "energy_amp": energy_amp,
                                 "relay_status": str(con["status"]) if "status" in con else None,
                                 "timestamp": str(parsed_ts) if parsed_ts else None,
+                                "is_online": True,
+                                "today_energy_kwh": round(today_kwh, 4),
                             }
 
                 # ── FAST PATH: 대시보드 업데이트를 최우선 브로드캐스트 ──
@@ -216,6 +229,7 @@ async def lifespan(app: FastAPI):
 
     if mqtt_listen_task:
         mqtt_listen_task.cancel()
+    offline_checker_task.cancel()
 
     # === 앱 종료 시 ===
     logger.info("IoTCOSS 백엔드 서버를 종료합니다...")
@@ -278,4 +292,63 @@ async def health_check():
         "mqtt_broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
         "mqtt_topic": settings.MQTT_TOPIC,
         "server_time": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/debug/energy", tags=["디버그"])
+async def debug_energy():
+    """전력량 계산 진단 엔드포인트 — 날짜별 레코드 수, 계산 결과 확인용"""
+    from sqlalchemy import select, func, text
+    from app.models.device import Device as DeviceModel
+
+    now = datetime.now()
+    today = now.date()
+    yesterday = today - timedelta(days=1)
+    month_start = today.replace(day=1)
+
+    # 날짜별 레코드 수 조회
+    async with async_session() as session:
+        date_counts = await session.execute(text(
+            "SELECT DATE(timestamp) as d, COUNT(*) as cnt, "
+            "COUNT(energy_amp) as amp_cnt "
+            "FROM devices WHERE timestamp IS NOT NULL "
+            "GROUP BY DATE(timestamp) ORDER BY d DESC LIMIT 10"
+        ))
+        date_rows = [
+            {"date": str(r[0]), "total": r[1], "with_energy_amp": r[2]}
+            for r in date_counts.all()
+        ]
+
+        # 어제 데이터 샘플 (디바이스별)
+        yesterday_detail = await session.execute(text(
+            f"SELECT device_mac, COUNT(*) as cnt, "
+            f"MIN(energy_amp) as min_amp, MAX(energy_amp) as max_amp, "
+            f"MIN(timestamp) as first_ts, MAX(timestamp) as last_ts "
+            f"FROM devices "
+            f"WHERE DATE(timestamp) = '{yesterday}' AND energy_amp IS NOT NULL "
+            f"GROUP BY device_mac ORDER BY device_mac"
+        ))
+        yesterday_devices = [
+            {
+                "mac": r[0], "count": r[1],
+                "min_amp": float(r[2]) if r[2] else None,
+                "max_amp": float(r[3]) if r[3] else None,
+                "first_ts": str(r[4]), "last_ts": str(r[5]),
+            }
+            for r in yesterday_detail.all()
+        ]
+
+    # 전력량 계산 결과
+    yesterday_kwh = await calculate_energy_kwh(yesterday)
+    monthly_kwh = await calculate_energy_kwh(month_start, today)
+
+    return {
+        "server_time": str(now),
+        "server_date": str(today),
+        "yesterday_date": str(yesterday),
+        "month_start": str(month_start),
+        "date_record_counts": date_rows,
+        "yesterday_devices": yesterday_devices,
+        "yesterday_kwh": round(yesterday_kwh, 6),
+        "monthly_kwh": round(monthly_kwh, 6),
     }
