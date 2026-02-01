@@ -157,20 +157,18 @@ async function confirmModal() {
   const selectedDevice = devices.value.find(d => d.id === selectedDeviceId.value)
   if (!selectedDevice) return
   
-  const startTime = `${pad2(hour.value)}:${pad2(minute.value)}:00`
-  const endTime = action.value === 'on' 
-    ? `${pad2((hour.value + 1) % 24)}:${pad2(minute.value)}:00` // ON이면 1시간 후 OFF
-    : `${pad2(hour.value)}:${pad2(minute.value)}:00` // OFF면 같은 시간
-
+  // ON: 선택 시간에 켜기, OFF: 선택 시간에 끄기
+  const selectedTime = `${pad2(hour.value)}:${pad2(minute.value)}:00`
+  
   const scheduleName = action.value === 'on'
-    ? `${selectedDevice.name} 전원 ON`
-    : `${selectedDevice.name} 전원 OFF`
+    ? `${selectedDevice.name} ${pad2(hour.value)}:${pad2(minute.value)} ON`
+    : `${selectedDevice.name} ${pad2(hour.value)}:${pad2(minute.value)} OFF`
 
   const success = await scheduleStore.createSchedule({
     device_mac: selectedDevice.deviceMac,
     schedule_name: scheduleName,
-    start_time: action.value === 'on' ? startTime : '00:00:00',
-    end_time: action.value === 'off' ? startTime : '23:59:59',
+    start_time: action.value === 'on' ? selectedTime : '00:00:00', // ON이면 이 시간에 켜기
+    end_time: action.value === 'off' ? selectedTime : '23:59:59',   // OFF면 이 시간에 끄기
     enabled: true,
     days_of_week: '0,1,2,3,4,5,6'
   })
@@ -201,7 +199,47 @@ const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value
       </button>
     </div>
 
-    <!-- (설명/프리뷰/부가UI 전부 제거) -->
+    <!-- 스케줄 목록 -->
+    <div v-if="scheduleStore.schedules.length > 0" class="space-y-3">
+      <div
+        v-for="schedule in scheduleStore.schedules"
+        :key="schedule.id"
+        class="bg-gray-800/40 border border-gray-700/50 rounded-xl p-4"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-sm font-semibold text-white truncate">{{ schedule.schedule_name }}</h3>
+            <p class="text-xs text-gray-400 mt-1">
+              {{ schedule.start_time.slice(0, 5) }} ~ {{ schedule.end_time.slice(0, 5) }}
+            </p>
+            <p class="text-xs text-gray-500 mt-0.5">{{ schedule.device_mac }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              @click="scheduleStore.toggleSchedule(schedule.id, !schedule.enabled)"
+              :class="[
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition',
+                schedule.enabled
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-gray-700/50 text-gray-400 border border-gray-600/30'
+              ]"
+            >
+              {{ schedule.enabled ? '활성' : '비활성' }}
+            </button>
+            <button
+              @click="scheduleStore.deleteSchedule(schedule.id)"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="text-center py-12 text-gray-500">
+      등록된 스케줄이 없습니다.
+    </div>
 
     <!-- Modal -->
     <div
