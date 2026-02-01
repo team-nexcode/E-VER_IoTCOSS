@@ -3,6 +3,7 @@
 MQTT에서 파싱된 디바이스 센서 데이터를 조회하는 엔드포인트를 제공합니다.
 """
 
+import json
 import logging
 from datetime import datetime
 
@@ -84,9 +85,10 @@ async def control_device_power(
                 device_control_map[device.device_mac] = switch_state if switch_state else "off"
         
         # 4. Mobius switch 컨테이너에 전송할 데이터 구성
+        # oneM2M ContentInstance의 con 필드는 문자열이어야 합니다
         payload = {
             "m2m:cin": {
-                "con": device_control_map
+                "con": json.dumps(device_control_map)
             }
         }
         

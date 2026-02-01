@@ -19,7 +19,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker, init_energy_accumulator, accumulate_energy, calculate_energy_kwh
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker, init_energy_accumulator, accumulate_energy, calculate_energy_kwh, update_dashboard_from_accumulator, KST
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -216,6 +216,7 @@ async def lifespan(app: FastAPI):
                 tasks = [_save_to_db(), broadcast_mqtt_message(topic, payload)]
                 if update_data:
                     tasks.append(broadcast_system_log(message=sensor_message, detail=sensor_detail))
+                    tasks.append(update_dashboard_from_accumulator())
 
                 await asyncio.gather(*tasks)
 
@@ -300,7 +301,6 @@ async def debug_energy():
     """전력량 계산 진단 엔드포인트 — 날짜별 레코드 수, 계산 결과 확인용"""
     from sqlalchemy import select, func, text
     from app.models.device import Device as DeviceModel
-    from app.api.websocket import KST
 
     now = datetime.now(KST)
     today = now.date()
