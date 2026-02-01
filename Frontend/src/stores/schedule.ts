@@ -93,6 +93,19 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  async function getDebugStatus() {
+    try {
+      const response = await fetch('/api/schedules/debug/status')
+      if (response.ok) {
+        const data = await response.json()
+        return data
+      }
+    } catch (error) {
+      console.error('디버그 정보 조회 오류:', error)
+    }
+    return null
+  }
+
   return {
     schedules,
     loading,
@@ -100,5 +113,6 @@ export const useScheduleStore = defineStore('schedule', () => {
     createSchedule,
     deleteSchedule,
     toggleSchedule,
+    getDebugStatus,
   }
 })
