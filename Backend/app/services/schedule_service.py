@@ -37,14 +37,16 @@ class ScheduleService:
             return
         
         self.is_running = True
-        logger.info("스케줄 서비스 시작")
+        logger.info("=" * 50)
+        logger.info("스케줄 서비스 시작 - 30초마다 스케줄 체크")
+        logger.info("=" * 50)
         
         while self.is_running:
             try:
                 await self._check_schedules()
                 await asyncio.sleep(30)  # 30초마다 체크
             except Exception as e:
-                logger.error(f"스케줄 체크 중 오류: {e}")
+                logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
                 await asyncio.sleep(30)
     
     async def stop(self):
@@ -74,15 +76,22 @@ class ScheduleService:
             )
             schedules: List[Schedule] = result.scalars().all()
             
+            logger.info(f"[스케줄 체크] 활성 스케줄 {len(schedules)}개 발견")
+            
             for schedule in schedules:
                 # 요일 확인
                 days = [int(d.strip()) for d in schedule.days_of_week.split(',')]
+                logger.debug(f"[스케줄] {schedule.schedule_name} - 실행 요일: {days}, 현재 요일: {current_day}")
+                
                 if current_day not in days:
+                    logger.debug(f"[스케줄] {schedule.schedule_name} - 오늘은 실행 안 함 (요일 불일치)")
                     continue
                 
                 # 시작 시간 체크
                 start_time = schedule.start_time.replace(second=0, microsecond=0) if isinstance(schedule.start_time, dt_time) else schedule.start_time
                 end_time = schedule.end_time.replace(second=0, microsecond=0) if isinstance(schedule.end_time, dt_time) else schedule.end_time
+                
+                logger.debug(f"[스케줄] {schedule.schedule_name} - start: {start_time}, end: {end_time}, current: {current_time}")
                 
                 if current_time == start_time:
                     logger.info(f"스케줄 실행 (ON): {schedule.schedule_name} (MAC: {schedule.device_mac})")
