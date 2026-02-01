@@ -3,7 +3,8 @@ export interface Device {
   name: string;
   deviceMac: string;
   location: string;
-  isActive: boolean;
+  isActive: boolean; // 실제 기기 상태 (MQTT로만 업데이트)
+  desiredState: boolean; // 토글 스위치 상태 (즉시 반영)
   currentPower: number;
   temperature: number;
   humidity: number;

@@ -84,9 +84,11 @@ async def control_device_power(
                 device_control_map[device.device_mac] = switch_state if switch_state else "off"
         
         # 4. Mobius switch 컨테이너에 전송할 데이터 구성
+        # oneM2M ContentInstance의 con 필드는 문자열이어야 합니다
         payload = {
             "m2m:cin": {
-                "con": device_control_map
+                "con": device_control_map,
+                "lbl": ["smart_plug"]
             }
         }
         

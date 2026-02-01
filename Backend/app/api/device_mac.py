@@ -76,6 +76,7 @@ async def create_device_mac(data: DeviceMacCreate, db: AsyncSession = Depends(ge
         "location": device.location,
     }
     await _write_system_log(db, "INSERT", detail_data)
+    await db.commit()
     invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] INSERT: {device.device_name} ({device.device_mac})",
@@ -128,6 +129,7 @@ async def update_device_mac(
         "old_values": old_values,
     }
     await _write_system_log(db, "UPDATE", update_detail)
+    await db.commit()
     invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] UPDATE: {device.device_name} ({device.device_mac})",
@@ -154,6 +156,7 @@ async def delete_device_mac(device_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(device)
 
     await _write_system_log(db, "DELETE", deleted_info)
+    await db.commit()
     invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] DELETE: {deleted_info['device_name']} ({deleted_info['device_mac']})",
