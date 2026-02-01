@@ -136,15 +136,26 @@ export const useDeviceStore = defineStore('device', () => {
 
   async function toggleDevicePower(deviceMac: string) {
     const device = devices.value.find((d) => d.deviceMac === deviceMac)
-    if (!device) return
+    if (!device) {
+      console.error('[전원제어] 디바이스를 찾을 수 없음:', deviceMac)
+      return
+    }
 
     const newState = device.isActive ? 'off' : 'on'
+    console.log('[전원제어] 시작:', {
+      device: device.name,
+      mac: deviceMac,
+      currentState: device.isActive ? 'on' : 'off',
+      newState: newState,
+    })
 
     try {
-      // 낙관적 업데이트 (즉시 UI 반영)
-      device.isActive = !device.isActive
+      // Backend API 호출 (UI는 변경하지 않음 - MQTT로 실제 상태가 올 때까지 대기)
+      console.log('[전원제어] API 요청 전송:', {
+        url: '/api/devices/power/control',
+        body: { mac_address: deviceMac, power_state: newState },
+      })
 
-      // Backend API 호출 (Vite proxy를 통해 자동으로 백엔드 서버로 전달됨)
       const response = await fetch('/api/devices/power/control', {
         method: 'POST',
         headers: {
@@ -156,17 +167,28 @@ export const useDeviceStore = defineStore('device', () => {
         }),
       })
 
+      console.log('[전원제어] API 응답:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
       if (!response.ok) {
-        // 실패 시 원래 상태로 복구
-        device.isActive = !device.isActive
-        console.error('전원 제어 실패:', await response.text())
-        alert('전원 제어에 실패했습니다.')
+        const errorText = await response.text()
+        console.error('[전원제어] API 실패:', {
+          status: response.status,
+          response: errorText,
+        })
+        alert(`전원 제어에 실패했습니다.\n상태: ${response.status}\n에러: ${errorText}`)
+      } else {
+        const result = await response.json()
+        console.log('[전원제어] 성공:', result)
+        console.log('[전원제어] MQTT를 통해 실제 상태가 업데이트될 때까지 대기 중...')
+        // UI는 MQTT 메시지가 도착할 때 updateDeviceSensor()에서 자동으로 업데이트됨
       }
     } catch (error) {
-      // 에러 시 원래 상태로 복구
-      device.isActive = !device.isActive
-      console.error('전원 제어 오류:', error)
-      alert('전원 제어 중 오류가 발생했습니다.')
+      console.error('[전원제어] 예외 발생:', error)
+      alert(`전원 제어 중 오류가 발생했습니다.\n${error}`)
     }
   }
 

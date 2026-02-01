@@ -48,7 +48,7 @@ class MobiusService:
         origin = "SOrigin_nexcode"  # MQTT 토픽과 동일한 Origin 사용
         headers = {
             "Accept": "application/json",
-            "X-M2M-RI": "req_id",
+            "X-M2M-RI": 12345,
             "X-M2M-Origin": origin,
             "X-API-KEY": settings.X_API_KEY,
             "X-AUTH-CUSTOM-LECTURE": settings.X_AUTH_CUSTOM_LECTURE,

@@ -86,7 +86,8 @@ async def control_device_power(
         # 4. Mobius switch 컨테이너에 전송할 데이터 구성
         payload = {
             "m2m:cin": {
-                "con": device_control_map
+                "con": device_control_map,
+                "lbl": ["smart_plug"]  # 필수: Mobius 권한 확인용 라벨
             }
         }
         
