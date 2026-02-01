@@ -45,3 +45,11 @@ async def get_db() -> AsyncSession:
             raise
         finally:
             await session.close()
+
+
+def get_db_session():
+    """
+    백그라운드 작업용 데이터베이스 세션 컨텍스트 매니저
+    async with get_db_session() as db: 형태로 사용
+    """
+    return async_session()

@@ -24,10 +24,12 @@ from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
 from app.api.device_mac import router as device_mac_router
+from app.api.schedules import router as schedules_router
 
 # 서비스 import
 from app.services.mqtt_service import mqtt_service
 from app.services.mobius_service import mobius_service
+from app.services.schedule_service import schedule_service
 
 # DB 세션 (로그 저장용)
 from app.database import async_session
@@ -226,11 +228,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"MQTT 브로커 연결 실패 (서버는 계속 실행됩니다): {e}")
 
+    # 스케줄 서비스 시작
+    schedule_task = asyncio.create_task(schedule_service.start())
+    logger.info("스케줄 서비스 시작")
+
     yield
 
     if mqtt_listen_task:
         mqtt_listen_task.cancel()
     offline_checker_task.cancel()
+    schedule_task.cancel()
+    await schedule_service.stop()
 
     # === 앱 종료 시 ===
     logger.info("IoTCOSS 백엔드 서버를 종료합니다...")
@@ -278,6 +286,7 @@ app.include_router(mobius_router)
 app.include_router(api_logs_router)
 app.include_router(system_logs_router)
 app.include_router(device_mac_router)
+app.include_router(schedules_router)
 
 
 @app.get("/api/health", tags=["헬스체크"])

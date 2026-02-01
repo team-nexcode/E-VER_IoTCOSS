@@ -68,6 +68,7 @@ export const useDeviceStore = defineStore('device', () => {
       deviceMac: (d.device_mac as string) ?? '',
       location: (d.location as string) ?? '',
       isActive: (d.relay_status as string) === 'on',
+      desiredState: (d.relay_status as string) === 'on', // 초기값은 실제 상태와 동일
       currentPower: (d.energy_amp as number) ?? 0,
       temperature: (d.temperature as number) ?? 0,
       humidity: (d.humidity as number) ?? 0,
@@ -138,26 +139,12 @@ export const useDeviceStore = defineStore('device', () => {
 
   async function toggleDevicePower(deviceMac: string) {
     const device = devices.value.find((d) => d.deviceMac === deviceMac)
-    if (!device) {
-      console.error('[전원제어] 디바이스를 찾을 수 없음:', deviceMac)
-      return
-    }
+    if (!device) return
 
-    const newState = device.isActive ? 'off' : 'on'
-    console.log('[전원제어] 시작:', {
-      device: device.name,
-      mac: deviceMac,
-      currentState: device.isActive ? 'on' : 'off',
-      newState: newState,
-    })
+    const newState = !device.desiredState
+    const newStateStr = newState ? 'on' : 'off'
 
     try {
-      // Backend API 호출 (UI는 변경하지 않음 - MQTT로 실제 상태가 올 때까지 대기)
-      console.log('[전원제어] API 요청 전송:', {
-        url: '/api/devices/power/control',
-        body: { mac_address: deviceMac, power_state: newState },
-      })
-
       const response = await fetch('/api/devices/power/control', {
         method: 'POST',
         headers: {
@@ -165,32 +152,37 @@ export const useDeviceStore = defineStore('device', () => {
         },
         body: JSON.stringify({
           mac_address: deviceMac,
-          power_state: newState,
+          power_state: newStateStr,
         }),
-      })
-
-      console.log('[전원제어] API 응답:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('[전원제어] API 실패:', {
-          status: response.status,
-          response: errorText,
-        })
         alert(`전원 제어에 실패했습니다.\n상태: ${response.status}\n에러: ${errorText}`)
       } else {
-        const result = await response.json()
-        console.log('[전원제어] 성공:', result)
-        console.log('[전원제어] MQTT를 통해 실제 상태가 업데이트될 때까지 대기 중...')
-        // UI는 MQTT 메시지가 도착할 때 updateDeviceSensor()에서 자동으로 업데이트됨
+        // 성공 시 DB에서 최신 desired_state 가져오기
+        await fetchDesiredStates()
       }
     } catch (error) {
-      console.error('[전원제어] 예외 발생:', error)
       alert(`전원 제어 중 오류가 발생했습니다.\n${error}`)
+    }
+  }
+
+  async function fetchDesiredStates() {
+    try {
+      const response = await fetch('/api/devices/power/status')
+      if (response.ok) {
+        const data = await response.json()
+        // device_switch 테이블의 desired_state로 토글 상태 업데이트
+        for (const statusItem of data.devices) {
+          const device = devices.value.find((d) => d.deviceMac === statusItem.device_mac)
+          if (device) {
+            device.desiredState = statusItem.desired_state === 'on'
+          }
+        }
+      }
+    } catch (error) {
+      console.error('제어 상태 조회 실패:', error)
     }
   }
 
@@ -203,6 +195,7 @@ export const useDeviceStore = defineStore('device', () => {
     dailyPowerByDevice,
     setDevices,
     setPowerSummary,
+    fetchDesiredStates,
     updateDeviceSensor,
     selectDevice,
     updatePosition,
