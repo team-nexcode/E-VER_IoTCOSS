@@ -10,7 +10,7 @@ const char ssid[] = "CSE-3173_2.4G";
 const char pass[] = "[WIFI_PASSWORD]";
 
 const char server[] = "onem2m.iotcoss.ac.kr";
-const int port = 443;
+const int port = 443; 
 
 const String cse = "Mobius";
 const String ae = "ae_nexcode";
@@ -33,7 +33,7 @@ WiFiSSLClient client;
 
 String myMacAddress = "";
 String relayStatus = "on"; 
-int mVperAmp = 450; 
+int mVperAmp = 600;
 
 // [최적화 1] 타이머 변수
 unsigned long lastSendTime = 0;
@@ -234,7 +234,7 @@ float readCurrentFast() {
     
     float resultVoltage = ((maxValue - minValue) * 5.0) / 1024.0;
     float vrms = (resultVoltage / 2.0) * 0.707;
-    float amps = ((vrms * 1000) / mVperAmp) - 0.03;
+    float amps = ((vrms * 1000) / mVperAmp) - 0.016;
     if (amps < 0) amps = 0;
     return amps;
 }
