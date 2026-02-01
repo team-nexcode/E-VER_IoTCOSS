@@ -5,7 +5,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timezone, timedelta
 from typing import List
 
 from sqlalchemy import select
@@ -17,6 +17,9 @@ from app.models.device_switch import DeviceSwitch
 from app.services.mobius_service import MobiusService
 
 logger = logging.getLogger(__name__)
+
+# 한국 시간대 (KST = UTC+9)
+KST = timezone(timedelta(hours=9))
 
 
 class ScheduleService:
@@ -51,7 +54,7 @@ class ScheduleService:
     
     async def _check_schedules(self):
         """현재 시간에 실행할 스케줄 확인 및 실행"""
-        now = datetime.now()
+        now = datetime.now(KST)  # 한국 시간 사용
         current_time = now.time().replace(second=0, microsecond=0)
         current_day = now.weekday()  # 0=월요일, 6=일요일
         current_minute = now.hour * 60 + now.minute
@@ -61,6 +64,8 @@ class ScheduleService:
             return
         
         self.last_checked_minute = current_minute
+        
+        logger.debug(f"[스케줄 체크] 현재 시간: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (요일: {current_day})")
         
         async with get_db_session() as db:
             # 활성화된 스케줄 조회
@@ -98,7 +103,7 @@ class ScheduleService:
             
             if switch:
                 switch.desired_state = power_state
-                switch.updated_at = datetime.utcnow()
+                switch.updated_at = datetime.now(KST)
             else:
                 new_switch = DeviceSwitch(
                     device_mac=device_mac,
