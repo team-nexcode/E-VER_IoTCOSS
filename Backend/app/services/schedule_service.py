@@ -42,12 +42,43 @@ class ScheduleService:
         logger.info("스케줄 서비스 시작 - 매 분마다 스케줄 체크")
         logger.info("=" * 50)
         
+        # 서비스 시작 로그를 DB에 기록
+        try:
+            async with get_db_session() as db:
+                start_log = SystemLog(
+                    type="SYSTEM",
+                    level="info",
+                    source="Schedule",
+                    message="스케줄 서비스 시작됨",
+                    detail=None,
+                    timestamp=datetime.now(KST)
+                )
+                db.add(start_log)
+                await db.commit()
+        except Exception as e:
+            logger.error(f"스케줄 서비스 시작 로그 실패: {e}")
+        
         while self.is_running:
             try:
                 await self._check_schedules()
                 await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
+                # 오류도 SystemLog에 기록
+                try:
+                    async with get_db_session() as db:
+                        error_log = SystemLog(
+                            type="ERROR",
+                            level="error",
+                            source="Schedule",
+                            message=f"스케줄 체크 중 오류: {str(e)}",
+                            detail=None,
+                            timestamp=datetime.now(KST)
+                        )
+                        db.add(error_log)
+                        await db.commit()
+                except:
+                    pass  # DB 저장 실패해도 계속 진행
                 await asyncio.sleep(30)
     
     async def stop(self):
@@ -159,7 +190,7 @@ class ScheduleService:
                         type="SYSTEM",
                         level="info",
                         source="Schedule",
-                        message=f"✅ ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        message=f"ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
                         detail=json.dumps({"mac": schedule.device_mac, "action": "on"}, ensure_ascii=False),
                         timestamp=now
                     )
@@ -176,7 +207,7 @@ class ScheduleService:
                         type="SYSTEM",
                         level="info",
                         source="Schedule",
-                        message=f"✅ OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        message=f"OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
                         detail=json.dumps({"mac": schedule.device_mac, "action": "off"}, ensure_ascii=False),
                         timestamp=now
                     )
