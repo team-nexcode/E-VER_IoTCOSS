@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { Plus, Check } from 'lucide-vue-next'
 import { useDeviceStore } from '@/stores/device'
+import { useScheduleStore } from '@/stores/schedule'
 import { storeToRefs } from 'pinia'
 
 type ScheduleAction = 'on' | 'off'
@@ -9,6 +10,12 @@ type ScheduleAction = 'on' | 'off'
 /** ===== Store ===== */
 const store = useDeviceStore()
 const { devices } = storeToRefs(store)
+
+const scheduleStore = useScheduleStore()
+
+onMounted(() => {
+  scheduleStore.fetchSchedules()
+})
 
 /** ===== 서버 동기화 시간 (대시보드 좌측하단 기준과 동일) ===== */
 const serverOffset = ref<number | null>(null)
@@ -144,9 +151,34 @@ function closeModal() {
 }
 
 /** NOTE: 저장/실행 로직은 여기서 안 함(요청대로 UI만) */
-function confirmModal() {
-  // 선택값은 hour/minute/selectedDeviceId/action에 들어있음
-  // 필요하면 여기서 emit/localStorage 저장 붙이면 됨
+async function confirmModal() {
+  if (selectedDeviceId.value === null) return
+  
+  const selectedDevice = devices.value.find(d => d.id === selectedDeviceId.value)
+  if (!selectedDevice) return
+  
+  const startTime = `${pad2(hour.value)}:${pad2(minute.value)}:00`
+  const endTime = action.value === 'on' 
+    ? `${pad2((hour.value + 1) % 24)}:${pad2(minute.value)}:00` // ON이면 1시간 후 OFF
+    : `${pad2(hour.value)}:${pad2(minute.value)}:00` // OFF면 같은 시간
+
+  const scheduleName = action.value === 'on'
+    ? `${selectedDevice.name} 전원 ON`
+    : `${selectedDevice.name} 전원 OFF`
+
+  const success = await scheduleStore.createSchedule({
+    device_mac: selectedDevice.deviceMac,
+    schedule_name: scheduleName,
+    start_time: action.value === 'on' ? startTime : '00:00:00',
+    end_time: action.value === 'off' ? startTime : '23:59:59',
+    enabled: true,
+    days_of_week: '0,1,2,3,4,5,6'
+  })
+  
+  if (success) {
+    alert('스케줄이 등록되었습니다.')
+  }
+  
   closeModal()
 }
 
