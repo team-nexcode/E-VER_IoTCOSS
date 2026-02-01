@@ -127,7 +127,7 @@ const { devices } = storeToRefs(store)
               @click.stop="store.toggleDevicePower(device.deviceMac)"
               :disabled="!device.isOnline"
               :class="[
-                'relative w-12 h-6 rounded-full transition-all duration-300',
+                'relative w-9 h-5 rounded-full transition-all duration-300',
                 !device.isOnline
                   ? 'bg-gray-700 cursor-not-allowed'
                   : device.desiredState
@@ -137,11 +137,11 @@ const { devices } = storeToRefs(store)
             >
               <div
                 :class="[
-                  'absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 shadow-md',
+                  'absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 shadow-md',
                   !device.isOnline
                     ? 'bg-gray-500 left-0.5'
                     : device.desiredState
-                      ? 'bg-white left-6'
+                      ? 'bg-white left-4'
                       : 'bg-white left-0.5',
                 ]"
               />
