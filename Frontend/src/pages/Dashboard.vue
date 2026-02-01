@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { BatteryCharging, Clock, Zap, TrendingDown, Banknote, Activity } from 'lucide-vue-next'
 import StatusCard from '@/components/Dashboard/StatusCard.vue'
 import FloorPlan from '@/components/Dashboard/FloorPlan.vue'
@@ -10,6 +10,24 @@ import { storeToRefs } from 'pinia'
 const selectedDeviceId = ref<number | null>(null)
 const store = useDeviceStore()
 const { powerSummary } = storeToRefs(store)
+
+let intervalId: number | null = null
+
+onMounted(() => {
+  // 초기 로드 시 desired_state 가져오기
+  store.fetchDesiredStates()
+  
+  // 5초마다 desired_state 동기화
+  intervalId = window.setInterval(() => {
+    store.fetchDesiredStates()
+  }, 5000)
+})
+
+onUnmounted(() => {
+  if (intervalId) {
+    clearInterval(intervalId)
+  }
+})
 </script>
 
 <template>

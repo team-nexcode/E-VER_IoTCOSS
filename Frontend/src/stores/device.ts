@@ -104,6 +104,24 @@ export const useDeviceStore = defineStore('device', () => {
     if (data.estimated_cost != null) estimatedCost.value = data.estimated_cost as number
   }
 
+  async function fetchDesiredStates() {
+    try {
+      const response = await fetch('/api/devices/power/status')
+      if (response.ok) {
+        const data = await response.json()
+        // device_switch 테이블의 desired_state로 토글 상태 업데이트
+        for (const statusItem of data.devices) {
+          const device = devices.value.find((d) => d.deviceMac === statusItem.device_mac)
+          if (device) {
+            device.desiredState = statusItem.desired_state === 'on'
+          }
+        }
+      }
+    } catch (error) {
+      console.error('제어 상태 조회 실패:', error)
+    }
+  }
+
   function updateDeviceSensor(data: Record<string, unknown>) {
     const mac = data.device_mac as string
     if (!mac) return
@@ -144,9 +162,6 @@ export const useDeviceStore = defineStore('device', () => {
     const newState = !device.desiredState
     const newStateStr = newState ? 'on' : 'off'
 
-    // 토글 스위치 UI 즉시 업데이트
-    device.desiredState = newState
-
     try {
       const response = await fetch('/api/devices/power/control', {
         method: 'POST',
@@ -161,15 +176,31 @@ export const useDeviceStore = defineStore('device', () => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        // 실패 시 토글 원래대로 복구
-        device.desiredState = !newState
         alert(`전원 제어에 실패했습니다.\n상태: ${response.status}\n에러: ${errorText}`)
+      } else {
+        // 성공 시 DB에서 최신 desired_state 가져오기
+        await fetchDesiredStates()
       }
-      // 실제 기기 상태(isActive)는 MQTT 메시지가 도착할 때 updateDeviceSensor()에서 업데이트됨
     } catch (error) {
-      // 예외 발생 시 토글 원래대로 복구
-      device.desiredState = !newState
       alert(`전원 제어 중 오류가 발생했습니다.\n${error}`)
+    }
+  }
+
+  async function fetchDesiredStates() {
+    try {
+      const response = await fetch('/api/devices/power/status')
+      if (response.ok) {
+        const data = await response.json()
+        // device_switch 테이블의 desired_state로 토글 상태 업데이트
+        for (const statusItem of data.devices) {
+          const device = devices.value.find((d) => d.deviceMac === statusItem.device_mac)
+          if (device) {
+            device.desiredState = statusItem.desired_state === 'on'
+          }
+        }
+      }
+    } catch (error) {
+      console.error('제어 상태 조회 실패:', error)
     }
   }
 
@@ -182,6 +213,7 @@ export const useDeviceStore = defineStore('device', () => {
     dailyPowerByDevice,
     setDevices,
     setPowerSummary,
+    fetchDesiredStates,
     updateDeviceSensor,
     selectDevice,
     updatePosition,
