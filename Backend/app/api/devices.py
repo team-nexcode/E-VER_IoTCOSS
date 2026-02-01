@@ -3,7 +3,6 @@
 MQTT에서 파싱된 디바이스 센서 데이터를 조회하는 엔드포인트를 제공합니다.
 """
 
-import json
 import logging
 from datetime import datetime
 
