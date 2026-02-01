@@ -88,7 +88,9 @@ class ScheduleService:
                 # 오류도 SystemLog에 기록
                 try:
                     async with get_db_session() as db:
-                        error_log = SystemLog(                            timestamp=get_naive_kst_now(),                            type="ERROR",
+                        error_log = SystemLog(
+                            timestamp=get_naive_kst_now(),
+                            type="ERROR",
                             level="error",
                             source="Schedule",
                             message=f"스케줄 체크 중 오류: {str(e)}",
@@ -142,7 +144,9 @@ class ScheduleService:
             logger.info(f"[스케줄 체크] 활성 스케줄 {len(schedules)}개 발견")
             
             # System Log에 체크 기록
-            check_log = SystemLog(                timestamp=get_naive_kst_now(),                type="SYSTEM",
+            check_log = SystemLog(
+                timestamp=get_naive_kst_now(),
+                type="SYSTEM",
                 level="info",
                 source="Schedule",
                 message=f"스케줄 체크: {now.strftime('%H:%M:%S')} | 활성 스케줄 {len(schedules)}개",
@@ -202,7 +206,9 @@ class ScheduleService:
                 if start_time_original != dt_time(0, 0, 0) and current_time == start_time:
                     logger.info(f"스케줄 실행 (ON): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     
-                    exec_log = SystemLog(                        timestamp=get_naive_kst_now(),                        type="SYSTEM",
+                    exec_log = SystemLog(
+                        timestamp=get_naive_kst_now(),
+                        type="SYSTEM",
                         level="info",
                         source="Schedule",
                         message=f"ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
@@ -217,7 +223,9 @@ class ScheduleService:
                 elif end_time_original != dt_time(23, 59, 59) and current_time == end_time:
                     logger.info(f"스케줄 실행 (OFF): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     
-                    exec_log = SystemLog(                        timestamp=get_naive_kst_now(),                        type="SYSTEM",
+                    exec_log = SystemLog(
+                        timestamp=get_naive_kst_now(),
+                        type="SYSTEM",
                         level="info",
                         source="Schedule",
                         message=f"OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
