@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, time as dt_time, timezone, timedelta
 from typing import List
@@ -33,8 +34,13 @@ class ScheduleService:
     
     async def start(self):
         """스케줄 서비스 시작"""
+        print("=" * 80)
+        print("[SCHEDULE SERVICE] START() 함수 진입!")
+        print("=" * 80)
+        
         if self.is_running:
             logger.warning("스케줄 서비스가 이미 실행 중입니다.")
+            print("[SCHEDULE SERVICE] 이미 실행 중")
             return
         
         self.is_running = True
@@ -42,12 +48,49 @@ class ScheduleService:
         logger.info("스케줄 서비스 시작 - 매 분마다 스케줄 체크")
         logger.info("=" * 50)
         
+        print("[SCHEDULE SERVICE] is_running = True 설정 완료")
+        
+        # 서비스 시작 로그를 DB에 기록
+        try:
+            print("[SCHEDULE SERVICE] SystemLog DB 저장 시도...")
+            async with get_db_session() as db:
+                start_log = SystemLog(
+                    type="SYSTEM",
+                    level="info",
+                    source="Schedule",
+                    message="스케줄 서비스 시작됨",
+                    detail=None
+                )
+                db.add(start_log)
+                await db.commit()
+            print("[SCHEDULE SERVICE] SystemLog DB 저장 성공!")
+        except Exception as e:
+            logger.error(f"스케줄 서비스 시작 로그 실패: {e}")
+            print(f"[SCHEDULE SERVICE] SystemLog DB 저장 실패: {e}")
+        
+        print("[SCHEDULE SERVICE] while 루프 시작...")
+
+        
         while self.is_running:
             try:
                 await self._check_schedules()
                 await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
+                # 오류도 SystemLog에 기록
+                try:
+                    async with get_db_session() as db:
+                        error_log = SystemLog(
+                            type="ERROR",
+                            level="error",
+                            source="Schedule",
+                            message=f"스케줄 체크 중 오류: {str(e)}",
+                            detail=None
+                        )
+                        db.add(error_log)
+                        await db.commit()
+                except:
+                    pass  # DB 저장 실패해도 계속 진행
                 await asyncio.sleep(30)
     
     async def stop(self):
@@ -71,8 +114,7 @@ class ScheduleService:
                     level="info",
                     source="Schedule",
                     message=f"30초 체크: {now.strftime('%H:%M:%S')} (같은 분이라 스킵)",
-                    detail=None,
-                    timestamp=now
+                    detail=None
                 )
                 db.add(skip_log)
                 await db.commit()
@@ -97,8 +139,7 @@ class ScheduleService:
                 level="info",
                 source="Schedule",
                 message=f"스케줄 체크: {now.strftime('%H:%M:%S')} | 활성 스케줄 {len(schedules)}개",
-                detail=None,
-                timestamp=now
+                detail=None
             )
             db.add(check_log)
             await db.commit()
@@ -131,7 +172,6 @@ class ScheduleService:
                 logger.info(f"  - 현재: {current_time} / 시작: {start_time} / 종료: {end_time}")
                 
                 # System Log에 스케줄 비교 기록
-                import json
                 detail_info = {
                     "schedule_name": schedule.schedule_name,
                     "current": str(current_time),
@@ -145,8 +185,7 @@ class ScheduleService:
                     level="info",
                     source="Schedule",
                     message=f"비교: {schedule.schedule_name} | 현재={current_time} 시작={start_time} 종료={end_time}",
-                    detail=json.dumps(detail_info, ensure_ascii=False),
-                    timestamp=now
+                    detail=json.dumps(detail_info, ensure_ascii=False)
                 )
                 db.add(comparison_log)
                 await db.commit()
@@ -159,9 +198,8 @@ class ScheduleService:
                         type="SYSTEM",
                         level="info",
                         source="Schedule",
-                        message=f"✅ ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
-                        detail=json.dumps({"mac": schedule.device_mac, "action": "on"}, ensure_ascii=False),
-                        timestamp=now
+                        message=f"ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        detail=json.dumps({"mac": schedule.device_mac, "action": "on"}, ensure_ascii=False)
                     )
                     db.add(exec_log)
                     await db.commit()
@@ -176,9 +214,8 @@ class ScheduleService:
                         type="SYSTEM",
                         level="info",
                         source="Schedule",
-                        message=f"✅ OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
-                        detail=json.dumps({"mac": schedule.device_mac, "action": "off"}, ensure_ascii=False),
-                        timestamp=now
+                        message=f"OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        detail=json.dumps({"mac": schedule.device_mac, "action": "off"}, ensure_ascii=False)
                     )
                     db.add(exec_log)
                     await db.commit()
