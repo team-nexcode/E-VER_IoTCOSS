@@ -30,10 +30,11 @@ export const useDeviceStore = defineStore('device', () => {
   const dailyPowerTotal = ref<DailyPowerPoint[]>([])
   const dailyPowerByDevice = ref<Record<number, DailyPowerPoint[]>>({})
 
-  // 백엔드에서 전달받는 전력량 (kWh)
+  // 백엔드에서 전달받는 전력량 (kWh) 및 요금
   const monthlyEnergy = ref(0)
   const yesterdayEnergy = ref(0)
   const todayEnergy = ref(0)
+  const estimatedCost = ref(0)
 
   const powerSummary = computed<PowerSummary>(() => {
     const devs = devices.value
@@ -53,7 +54,7 @@ export const useDeviceStore = defineStore('device', () => {
       totalDevices: total,
       avgTemperature: avgTemp,
       savingsPercent: 0,
-      estimatedCost: 0,
+      estimatedCost: estimatedCost.value,
       peakPower: 0,
     }
   })
@@ -99,6 +100,7 @@ export const useDeviceStore = defineStore('device', () => {
     if (data.monthly_energy_kwh != null) monthlyEnergy.value = data.monthly_energy_kwh as number
     if (data.yesterday_energy_kwh != null) yesterdayEnergy.value = data.yesterday_energy_kwh as number
     if (data.today_energy_kwh != null) todayEnergy.value = data.today_energy_kwh as number
+    if (data.estimated_cost != null) estimatedCost.value = data.estimated_cost as number
   }
 
   function updateDeviceSensor(data: Record<string, unknown>) {

@@ -9,5 +9,7 @@ from app.models.user import User
 from app.models.api_log import ApiLog
 from app.models.system_log import SystemLog
 from app.models.device_mac import DeviceMac
+from app.models.dashboard import Dashboard
+from app.models.device_switch import DeviceSwitch
 
-__all__ = ["Device", "PowerLog", "User", "ApiLog", "SystemLog", "DeviceMac"]
+__all__ = ["Device", "PowerLog", "User", "ApiLog", "SystemLog", "DeviceMac", "Dashboard", "DeviceSwitch"]
