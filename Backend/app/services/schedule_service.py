@@ -87,17 +87,27 @@ class ScheduleService:
                     logger.debug(f"[스케줄] {schedule.schedule_name} - 오늘은 실행 안 함 (요일 불일치)")
                     continue
                 
-                # 시작 시간 체크
-                start_time = schedule.start_time.replace(second=0, microsecond=0) if isinstance(schedule.start_time, dt_time) else schedule.start_time
-                end_time = schedule.end_time.replace(second=0, microsecond=0) if isinstance(schedule.end_time, dt_time) else schedule.end_time
+                # 시간을 time 객체로 변환
+                if isinstance(schedule.start_time, dt_time):
+                    start_time = schedule.start_time.replace(second=0, microsecond=0)
+                else:
+                    start_time = dt_time.fromisoformat(str(schedule.start_time)).replace(second=0, microsecond=0)
                 
-                logger.debug(f"[스케줄] {schedule.schedule_name} - start: {start_time}, end: {end_time}, current: {current_time}")
+                if isinstance(schedule.end_time, dt_time):
+                    end_time = schedule.end_time.replace(second=0, microsecond=0)
+                else:
+                    end_time = dt_time.fromisoformat(str(schedule.end_time)).replace(second=0, microsecond=0)
                 
-                if current_time == start_time:
+                logger.info(f"[스케줄 비교] {schedule.schedule_name}")
+                logger.info(f"  - 현재: {current_time} / 시작: {start_time} / 종료: {end_time}")
+                
+                # start_time이 00:00:00이 아닐 때만 체크 (ON 스케줄)
+                if start_time != dt_time(0, 0, 0) and current_time == start_time:
                     logger.info(f"스케줄 실행 (ON): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     await self._execute_power_control(schedule.device_mac, "on", db)
                 
-                elif current_time == end_time:
+                # end_time이 23:59:59가 아닐 때만 체크 (OFF 스케줄)
+                elif end_time != dt_time(23, 59, 59) and current_time == end_time:
                     logger.info(f"스케줄 실행 (OFF): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     await self._execute_power_control(schedule.device_mac, "off", db)
     
