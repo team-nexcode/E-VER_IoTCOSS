@@ -77,7 +77,7 @@ function saveSchedules() {
 }
 
 function makeId() {
-  return (crypto as any)?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`
+  return `${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
 
 function getDeviceName(id: number) {
@@ -102,8 +102,7 @@ const minute = ref(0)
 /** ===== Wheel Picker (하이라이트/선택 정확히 일치) ===== */
 const ITEM_H = 44
 const WHEEL_H = 240
-// ✅ 하이라이트를 'top: PAD'로 고정해서 50% 변환 오차 제거
-const PAD = Math.round((WHEEL_H - ITEM_H) / 2)
+const PAD = Math.round((WHEEL_H - ITEM_H) / 2) // ✅ 중앙 정확히
 
 const H_REPEAT = 7
 const M_REPEAT = 5
@@ -197,7 +196,7 @@ async function openModal() {
   selectedDeviceId.value = devices.value[0]?.id ?? null
   action.value = 'on'
 
-  // ✅ 기본 시간: 현재 시간(서버 기준)
+  // ✅ 기본 시간 = 현재 시간(서버 기준)
   await syncTimeOnce()
   const now = getNow()
   hour.value = now.getHours()
@@ -212,6 +211,7 @@ function closeModal() {
 
 function confirmModal() {
   if (selectedDeviceId.value === null) return
+
   const t = `${pad2(hour.value)}:${pad2(minute.value)}`
   schedules.value.push({
     id: makeId(),
@@ -236,7 +236,7 @@ onMounted(() => {
       <h2 class="text-2xl font-bold text-white">스케줄</h2>
     </div>
 
-    <!-- iOS-ish: grouped list 느낌 -->
+    <!-- iOS-ish grouped list -->
     <div class="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
       <!-- 알람 목록 -->
       <div v-if="schedules.length" class="divide-y divide-white/10">
@@ -278,7 +278,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- ✅ 알람추가: 글씨/아이콘 완전 가운데 -->
+      <!-- 알람추가 중앙 정렬 -->
       <button
         type="button"
         class="w-full h-14 border-t border-white/10 hover:bg-white/[0.05] active:bg-white/[0.06] transition
@@ -300,9 +300,9 @@ onMounted(() => {
       @click.self="closeModal"
     >
       <div class="w-full sm:max-w-xl sm:w-[560px] px-3 sm:px-0 pb-3 sm:pb-0">
-        <!-- ✅ 외곽(모달 카드) = 직각 -->
+        <!-- 모달 외곽 = 직각 -->
         <div class="bg-[#0b1220] ring-1 ring-white/12 overflow-hidden rounded-none">
-          <!-- Top bar: iOS 텍스트 버튼 -->
+          <!-- Top bar -->
           <div class="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/10">
             <button
               type="button"
@@ -325,7 +325,7 @@ onMounted(() => {
           </div>
 
           <div class="px-5 py-5 space-y-4">
-            <!-- ✅ 디바이스 선택만 직각 -->
+            <!-- 디바이스 선택만 직각 -->
             <div class="bg-white/[0.04] ring-1 ring-white/10 overflow-hidden rounded-none">
               <div class="divide-y divide-white/10">
                 <button
@@ -421,7 +421,7 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <!-- ✅ 하이라이트 위치 정확히: top = PAD -->
+                <!-- 하이라이트 위치 정확히: top = PAD -->
                 <div class="pointer-events-none absolute left-0 right-0 px-4" :style="{ top: PAD + 'px' }">
                   <div class="h-[44px] rounded-xl bg-white/[0.06] border border-white/10" />
                 </div>
