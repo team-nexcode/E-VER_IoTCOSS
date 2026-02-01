@@ -14,7 +14,7 @@ from app.models.schedule import Schedule
 from app.models.device_mac import DeviceMac
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 
-router = APIRouter(prefix="/schedules", tags=["schedules"])
+router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 logger = logging.getLogger(__name__)
 
 
