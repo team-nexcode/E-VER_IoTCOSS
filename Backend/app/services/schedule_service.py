@@ -114,6 +114,8 @@ class ScheduleService:
     async def _execute_power_control(self, device_mac: str, power_state: str, db: AsyncSession):
         """전원 제어 실행"""
         try:
+            logger.info(f"[전원 제어 시작] MAC: {device_mac}, 상태: {power_state}")
+            
             # device_switch 테이블 업데이트
             result = await db.execute(
                 select(DeviceSwitch).where(DeviceSwitch.device_mac == device_mac)
@@ -121,9 +123,11 @@ class ScheduleService:
             switch = result.scalar_one_or_none()
             
             if switch:
+                logger.info(f"  - 기존 스위치 발견, 업데이트: {switch.desired_state} → {power_state}")
                 switch.desired_state = power_state
                 switch.updated_at = datetime.now(KST)
             else:
+                logger.info(f"  - 새 스위치 생성")
                 new_switch = DeviceSwitch(
                     device_mac=device_mac,
                     desired_state=power_state,
@@ -131,16 +135,21 @@ class ScheduleService:
                 db.add(new_switch)
             
             await db.commit()
+            logger.info(f"  - DB 커밋 완료")
             
             # 모든 디바이스의 제어 상태 수집
             result = await db.execute(select(DeviceSwitch))
             all_switches = result.scalars().all()
             
             device_control_map = {s.device_mac: s.desired_state for s in all_switches}
+            logger.info(f"  - 전체 디바이스 제어 맵: {device_control_map}")
             
             # Mobius로 전송
             payload = {"m2m:cin": {"con": device_control_map}}
+            logger.info(f"  - Mobius 전송 시작: ae_nexcode/switch")
             response = await self.mobius_service.create_cin("ae_nexcode", "switch", payload)
+            
+            logger.info(f"  - Mobius 응답: status={response.get('status')}")
             
             if response.get("status") in [200, 201]:
                 logger.info(f"스케줄 전원 제어 성공: {device_mac} → {power_state}")
@@ -148,7 +157,7 @@ class ScheduleService:
                 logger.error(f"스케줄 전원 제어 실패: {device_mac}, Mobius 응답: {response}")
         
         except Exception as e:
-            logger.error(f"스케줄 전원 제어 중 오류: {e}")
+            logger.error(f"스케줄 전원 제어 중 오류: {e}", exc_info=True)
             await db.rollback()
 
 
