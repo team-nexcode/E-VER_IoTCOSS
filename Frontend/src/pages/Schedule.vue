@@ -165,7 +165,7 @@ function wheelClickMin(i: number) {
 /** ===== Open/Close ===== */
 async function openModal() {
   isOpen.value = true
-  selectedDeviceId.value = devices.value[0]?.id ?? null
+  selectedDeviceId.value = deviceMacs.value[0]?.id ?? null
   action.value = 'on'
 
   // ✅ 기본 시간 = 현재 시간(서버 기준)
