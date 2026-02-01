@@ -181,6 +181,29 @@ async function confirmModal() {
 }
 
 const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value)}`)
+
+async function showDebugInfo() {
+  const info = await scheduleStore.getDebugStatus()
+  if (info) {
+    const msg = `
+🕐 현재 시간 (KST): ${info.current_time_kst}
+📅 현재 요일: ${info.current_weekday} (0=월, 6=일)
+🔄 스케줄 서비스: ${info.service_running ? '실행중 ✅' : '중지됨 ❌'}
+📋 등록된 스케줄: ${info.total_schedules}개
+
+--- 스케줄 목록 ---
+${info.schedules.map((s: any) => `
+  • ${s.name}
+    MAC: ${s.mac}
+    시작: ${s.start} / 종료: ${s.end}
+    활성: ${s.enabled ? 'O' : 'X'}
+    요일: ${s.days}
+`).join('')}
+    `.trim()
+    
+    alert(msg)
+  }
+}
 </script>
 
 <template>
@@ -189,14 +212,23 @@ const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value
     <div class="flex items-center justify-between">
       <h2 class="text-2xl font-bold text-white">스케줄</h2>
 
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-white transition"
-        @click="openModal"
-      >
-        <Plus class="w-4 h-4" />
-        <span class="text-sm font-semibold">알람 추가</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 text-gray-300 hover:text-white transition text-sm"
+          @click="showDebugInfo"
+        >
+          🐛 디버그
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-white transition"
+          @click="openModal"
+        >
+          <Plus class="w-4 h-4" />
+          <span class="text-sm font-semibold">알람 추가</span>
+        </button>
+      </div>
     </div>
 
     <!-- 스케줄 목록 -->
