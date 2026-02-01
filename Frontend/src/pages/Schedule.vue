@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { Plus, Check } from 'lucide-vue-next'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { Plus, Check, Trash2 } from 'lucide-vue-next'
 import { useDeviceStore } from '@/stores/device'
 import { storeToRefs } from 'pinia'
 
 type ScheduleAction = 'on' | 'off'
+interface DeviceSchedule {
+  id: string
+  deviceId: number
+  time: string // "HH:MM"
+  action: ScheduleAction
+}
+
+const LS_SCHEDULES = 'aiot_schedules'
 
 /** ===== Store ===== */
 const store = useDeviceStore()
 const { devices } = storeToRefs(store)
 
-/** ===== 서버 동기화 시간 (대시보드 좌측하단 기준과 동일) ===== */
+/** ===== 서버 동기화 시간(대시보드 좌측하단 기준과 동일) ===== */
 const serverOffset = ref<number | null>(null)
 
 async function syncTimeOnce() {
@@ -24,13 +32,64 @@ async function syncTimeOnce() {
     serverOffset.value = null
   }
 }
-
 function getNow(): Date {
   return serverOffset.value === null ? new Date() : new Date(Date.now() + serverOffset.value)
 }
-
 function pad2(n: number) {
   return String(n).padStart(2, '0')
+}
+
+/** ===== Schedules list (저장/표시) ===== */
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+const schedules = ref<DeviceSchedule[]>([])
+
+function loadSchedules() {
+  const list = safeParse<any[]>(localStorage.getItem(LS_SCHEDULES), [])
+  schedules.value = Array.isArray(list)
+    ? list
+        .filter(
+          (s) =>
+            s &&
+            typeof s.id === 'string' &&
+            typeof s.deviceId === 'number' &&
+            typeof s.time === 'string' &&
+            (s.action === 'on' || s.action === 'off')
+        )
+        .map((s) => ({
+          id: s.id as string,
+          deviceId: s.deviceId as number,
+          time: s.time as string,
+          action: s.action as ScheduleAction,
+        }))
+    : []
+}
+
+function saveSchedules() {
+  localStorage.setItem(LS_SCHEDULES, JSON.stringify(schedules.value))
+}
+
+function makeId() {
+  return (crypto as any)?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+function getDeviceName(id: number) {
+  return devices.value.find((d) => d.id === id)?.name ?? `Device #${id}`
+}
+function getDeviceLoc(id: number) {
+  return devices.value.find((d) => d.id === id)?.location ?? ''
+}
+
+function removeSchedule(id: string) {
+  schedules.value = schedules.value.filter((s) => s.id !== id)
+  saveSchedules()
 }
 
 /** ===== Modal State ===== */
@@ -40,9 +99,12 @@ const action = ref<ScheduleAction>('on')
 const hour = ref(0)
 const minute = ref(0)
 
-/** ===== Wheel Picker ===== */
+/** ===== Wheel Picker (하이라이트/선택 정확히 일치) ===== */
 const ITEM_H = 44
-const PAD = ITEM_H * 2
+const WHEEL_H = 240
+// ✅ 하이라이트를 'top: PAD'로 고정해서 50% 변환 오차 제거
+const PAD = Math.round((WHEEL_H - ITEM_H) / 2)
+
 const H_REPEAT = 7
 const M_REPEAT = 5
 
@@ -91,30 +153,34 @@ function setWheelTo(h: number, m: number) {
 function onHourScroll() {
   if (!hourWheel.value) return
   if (rafH) cancelAnimationFrame(rafH)
+
   rafH = requestAnimationFrame(() => {
     const el = hourWheel.value!
     normalizeInfinite(el, 24, H_REPEAT)
     const idx = Math.round(el.scrollTop / ITEM_H)
+
     hIndex.value = idx
     hour.value = hoursList.value[idx] ?? 0
 
     if (hSnapTimer) window.clearTimeout(hSnapTimer)
-    hSnapTimer = window.setTimeout(() => settle(el, idx), 120)
+    hSnapTimer = window.setTimeout(() => settle(el, idx), 110)
   })
 }
 
 function onMinScroll() {
   if (!minWheel.value) return
   if (rafM) cancelAnimationFrame(rafM)
+
   rafM = requestAnimationFrame(() => {
     const el = minWheel.value!
     normalizeInfinite(el, 60, M_REPEAT)
     const idx = Math.round(el.scrollTop / ITEM_H)
+
     mIndex.value = idx
     minute.value = minutesList.value[idx] ?? 0
 
     if (mSnapTimer) window.clearTimeout(mSnapTimer)
-    mSnapTimer = window.setTimeout(() => settle(el, idx), 120)
+    mSnapTimer = window.setTimeout(() => settle(el, idx), 110)
   })
 }
 
@@ -131,6 +197,7 @@ async function openModal() {
   selectedDeviceId.value = devices.value[0]?.id ?? null
   action.value = 'on'
 
+  // ✅ 기본 시간: 현재 시간(서버 기준)
   await syncTimeOnce()
   const now = getNow()
   hour.value = now.getHours()
@@ -143,59 +210,113 @@ function closeModal() {
   isOpen.value = false
 }
 
-/** NOTE: 저장/실행 로직은 여기서 안 함(요청대로 UI만) */
 function confirmModal() {
-  // 선택값은 hour/minute/selectedDeviceId/action에 들어있음
-  // 필요하면 여기서 emit/localStorage 저장 붙이면 됨
+  if (selectedDeviceId.value === null) return
+  const t = `${pad2(hour.value)}:${pad2(minute.value)}`
+  schedules.value.push({
+    id: makeId(),
+    deviceId: selectedDeviceId.value,
+    time: t,
+    action: action.value,
+  })
+  saveSchedules()
   closeModal()
 }
 
 const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value)}`)
+
+onMounted(() => {
+  loadSchedules()
+})
 </script>
 
 <template>
-  <div class="space-y-5">
-    <!-- Header -->
+  <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-2xl font-bold text-white">스케줄</h2>
-
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-white transition"
-        @click="openModal"
-      >
-        <Plus class="w-4 h-4" />
-        <span class="text-sm font-semibold">알람 추가</span>
-      </button>
     </div>
 
-    <!-- (설명/프리뷰/부가UI 전부 제거) -->
+    <!-- iOS-ish: grouped list 느낌 -->
+    <div class="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+      <!-- 알람 목록 -->
+      <div v-if="schedules.length" class="divide-y divide-white/10">
+        <div
+          v-for="s in schedules"
+          :key="s.id"
+          class="px-4 py-3 flex items-center justify-between gap-4 hover:bg-white/[0.04] transition"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-3">
+              <div class="text-[22px] font-mono font-bold text-white tracking-wider">
+                {{ s.time }}
+              </div>
+
+              <span
+                class="text-[11px] font-bold px-2 py-1 rounded-full border"
+                :class="s.action === 'on'
+                  ? 'bg-green-500/15 text-green-200 border-green-500/25'
+                  : 'bg-red-500/15 text-red-200 border-red-500/25'"
+              >
+                {{ s.action.toUpperCase() }}
+              </span>
+            </div>
+
+            <div class="text-sm text-white/70 truncate mt-0.5">
+              {{ getDeviceName(s.deviceId) }}
+              <span class="text-white/35" v-if="getDeviceLoc(s.deviceId)">· {{ getDeviceLoc(s.deviceId) }}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="p-2 rounded-xl text-white/35 hover:text-white/75 hover:bg-white/[0.04] transition"
+            @click="removeSchedule(s.id)"
+            aria-label="delete"
+          >
+            <Trash2 class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <!-- ✅ 알람추가: 글씨/아이콘 완전 가운데 -->
+      <button
+        type="button"
+        class="w-full h-14 border-t border-white/10 hover:bg-white/[0.05] active:bg-white/[0.06] transition
+               flex items-center justify-center gap-2"
+        :class="schedules.length ? '' : 'border-t-0'"
+        @click="openModal"
+      >
+        <span class="w-7 h-7 grid place-items-center rounded-full bg-white/[0.06] border border-white/10">
+          <Plus class="w-4 h-4 text-white/80" />
+        </span>
+        <span class="text-base font-semibold text-white">알람 추가</span>
+      </button>
+    </div>
 
     <!-- Modal -->
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md"
       @click.self="closeModal"
     >
-      <div class="w-full sm:max-w-lg sm:w-[520px] px-3 sm:px-0 pb-3 sm:pb-0">
-        <div class="rounded-3xl bg-[#0b1220] border border-white/10 shadow-2xl overflow-hidden">
-          <!-- iOS style topbar (corner clipping 방지: 패딩 충분) -->
-          <div class="px-6 pt-5 pb-4 flex items-center justify-between">
+      <div class="w-full sm:max-w-xl sm:w-[560px] px-3 sm:px-0 pb-3 sm:pb-0">
+        <!-- ✅ 외곽(모달 카드) = 직각 -->
+        <div class="bg-[#0b1220] ring-1 ring-white/12 overflow-hidden rounded-none">
+          <!-- Top bar: iOS 텍스트 버튼 -->
+          <div class="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/10">
             <button
               type="button"
-              class="px-3 py-2 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-gray-200 hover:text-white transition"
+              class="text-sky-300 hover:text-sky-200 transition text-[17px] font-semibold"
               @click="closeModal"
             >
               취소
             </button>
 
-            <div class="text-center">
-              <p class="text-lg font-semibold text-white leading-none">알람</p>
-            </div>
+            <div class="text-white text-[20px] font-bold">알람</div>
 
             <button
               type="button"
-              class="px-3 py-2 rounded-2xl bg-sky-500/90 hover:bg-sky-500 text-white font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              class="text-sky-300 hover:text-sky-200 transition text-[17px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               :disabled="selectedDeviceId === null"
               @click="confirmModal"
             >
@@ -203,121 +324,133 @@ const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value
             </button>
           </div>
 
-          <div class="px-6 pb-6 space-y-5">
-            <!-- Device list -->
-            <div class="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
-              <button
-                v-for="d in devices"
-                :key="d.id"
-                type="button"
-                class="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.06] transition text-left"
-                @click="selectedDeviceId = d.id"
-              >
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-white truncate">{{ d.name }}</p>
-                  <p class="text-[11px] text-gray-500 truncate">{{ d.location }}</p>
-                </div>
-                <Check v-if="selectedDeviceId === d.id" class="w-5 h-5 text-sky-300 flex-shrink-0" />
-              </button>
+          <div class="px-5 py-5 space-y-4">
+            <!-- ✅ 디바이스 선택만 직각 -->
+            <div class="bg-white/[0.04] ring-1 ring-white/10 overflow-hidden rounded-none">
+              <div class="divide-y divide-white/10">
+                <button
+                  v-for="d in devices"
+                  :key="d.id"
+                  type="button"
+                  class="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.05] transition text-left"
+                  @click="selectedDeviceId = d.id"
+                >
+                  <div class="min-w-0">
+                    <p class="text-[16px] font-semibold text-white truncate">{{ d.name }}</p>
+                    <p class="text-[12px] text-white/45 truncate mt-0.5">{{ d.location }}</p>
+                  </div>
+                  <Check v-if="selectedDeviceId === d.id" class="w-6 h-6 text-sky-300 flex-shrink-0" />
+                </button>
 
-              <div v-if="devices.length === 0" class="px-4 py-5 text-sm text-gray-500">
-                디바이스 없음
+                <div v-if="devices.length === 0" class="px-4 py-5 text-sm text-white/45">
+                  디바이스 없음
+                </div>
               </div>
             </div>
 
-            <!-- Time picker -->
-            <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-              <div class="flex items-center justify-center gap-4">
-                <!-- Hour -->
-                <div class="relative">
-                  <div
-                    ref="hourWheel"
-                    class="wheel h-[220px] w-[92px]"
-                    :style="{ paddingTop: PAD + 'px', paddingBottom: PAD + 'px' }"
-                    @scroll="onHourScroll"
-                  >
+            <!-- 시간 설정(라운드 유지) -->
+            <div class="bg-white/[0.04] ring-1 ring-white/10 overflow-hidden rounded-2xl">
+              <div class="relative px-4 py-5">
+                <div class="flex items-center justify-center gap-6">
+                  <!-- Hour -->
+                  <div class="relative">
                     <div
-                      v-for="(v, i) in hoursList"
-                      :key="`h_${i}`"
-                      class="h-[44px] flex items-center justify-center snap-center"
+                      ref="hourWheel"
+                      class="wheel w-[92px]"
+                      :style="{
+                        height: WHEEL_H + 'px',
+                        paddingTop: PAD + 'px',
+                        paddingBottom: PAD + 'px',
+                        scrollPaddingTop: PAD + 'px',
+                        scrollPaddingBottom: PAD + 'px',
+                      }"
+                      @scroll="onHourScroll"
                     >
-                      <button type="button" class="w-full h-full flex items-center justify-center" @click="wheelClickHour(i)">
-                        <span
-                          :class="[
-                            'font-mono text-2xl transition',
-                            i === hIndex ? 'text-white font-semibold' : 'text-gray-500',
-                          ]"
-                        >
-                          {{ pad2(v) }}
-                        </span>
-                      </button>
+                      <div
+                        v-for="(v, i) in hoursList"
+                        :key="`h_${i}`"
+                        class="h-[44px] flex items-center justify-center snap-center"
+                      >
+                        <button type="button" class="w-full h-full grid place-items-center" @click="wheelClickHour(i)">
+                          <span
+                            :class="[
+                              'font-mono text-[28px] transition',
+                              i === hIndex ? 'text-white' : 'text-white/35',
+                            ]"
+                          >
+                            {{ pad2(v) }}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div class="h-[44px] w-full rounded-xl bg-white/[0.06] border border-white/10" />
-                  </div>
-                </div>
+                  <div class="text-4xl font-mono text-white/35 -mt-1">:</div>
 
-                <div class="text-3xl font-mono text-white/60 -mt-1">:</div>
-
-                <!-- Minute -->
-                <div class="relative">
-                  <div
-                    ref="minWheel"
-                    class="wheel h-[220px] w-[92px]"
-                    :style="{ paddingTop: PAD + 'px', paddingBottom: PAD + 'px' }"
-                    @scroll="onMinScroll"
-                  >
+                  <!-- Minute -->
+                  <div class="relative">
                     <div
-                      v-for="(v, i) in minutesList"
-                      :key="`m_${i}`"
-                      class="h-[44px] flex items-center justify-center snap-center"
+                      ref="minWheel"
+                      class="wheel w-[92px]"
+                      :style="{
+                        height: WHEEL_H + 'px',
+                        paddingTop: PAD + 'px',
+                        paddingBottom: PAD + 'px',
+                        scrollPaddingTop: PAD + 'px',
+                        scrollPaddingBottom: PAD + 'px',
+                      }"
+                      @scroll="onMinScroll"
                     >
-                      <button type="button" class="w-full h-full flex items-center justify-center" @click="wheelClickMin(i)">
-                        <span
-                          :class="[
-                            'font-mono text-2xl transition',
-                            i === mIndex ? 'text-white font-semibold' : 'text-gray-500',
-                          ]"
-                        >
-                          {{ pad2(v) }}
-                        </span>
-                      </button>
+                      <div
+                        v-for="(v, i) in minutesList"
+                        :key="`m_${i}`"
+                        class="h-[44px] flex items-center justify-center snap-center"
+                      >
+                        <button type="button" class="w-full h-full grid place-items-center" @click="wheelClickMin(i)">
+                          <span
+                            :class="[
+                              'font-mono text-[28px] transition',
+                              i === mIndex ? 'text-white' : 'text-white/35',
+                            ]"
+                          >
+                            {{ pad2(v) }}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div class="h-[44px] w-full rounded-xl bg-white/[0.06] border border-white/10" />
-                  </div>
                 </div>
-              </div>
 
-              <div class="mt-4 text-center text-lg font-mono font-semibold text-white">
-                {{ selectedTimeText }}
+                <!-- ✅ 하이라이트 위치 정확히: top = PAD -->
+                <div class="pointer-events-none absolute left-0 right-0 px-4" :style="{ top: PAD + 'px' }">
+                  <div class="h-[44px] rounded-xl bg-white/[0.06] border border-white/10" />
+                </div>
+
+                <div class="mt-4 text-center text-[20px] font-mono font-bold text-white tracking-wider">
+                  {{ selectedTimeText }}
+                </div>
               </div>
             </div>
 
-            <!-- ON/OFF segmented -->
-            <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-2">
-              <div class="relative grid grid-cols-2 gap-2">
-                <!-- sliding pill -->
-                <div
-                  class="absolute top-1 bottom-1 left-1 w-[calc(50%-0.5rem)] rounded-2xl transition-transform duration-200"
-                  :class="action === 'on' ? 'translate-x-0 bg-green-500/20 border border-green-500/25' : 'translate-x-full bg-white/[0.10] border border-white/15'"
-                />
+            <!-- ON/OFF(라운드 유지) + 색상(초록/빨강) -->
+            <div class="bg-white/[0.04] ring-1 ring-white/10 overflow-hidden rounded-2xl">
+              <div class="grid grid-cols-2">
                 <button
                   type="button"
-                  class="relative z-10 py-3 rounded-2xl text-sm font-semibold transition"
-                  :class="action === 'on' ? 'text-green-200' : 'text-gray-300 hover:text-white'"
+                  class="h-12 text-[15px] font-bold transition border-r border-white/10"
+                  :class="action === 'on'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-transparent text-white/70 hover:bg-white/[0.04]'"
                   @click="action = 'on'"
                 >
                   ON
                 </button>
                 <button
                   type="button"
-                  class="relative z-10 py-3 rounded-2xl text-sm font-semibold transition"
-                  :class="action === 'off' ? 'text-white' : 'text-gray-300 hover:text-white'"
+                  class="h-12 text-[15px] font-bold transition"
+                  :class="action === 'off'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-transparent text-white/70 hover:bg-white/[0.04]'"
                   @click="action = 'off'"
                 >
                   OFF
@@ -325,7 +458,6 @@ const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value
               </div>
             </div>
 
-            <!-- bottom safe padding -->
             <div class="h-1" />
           </div>
         </div>
