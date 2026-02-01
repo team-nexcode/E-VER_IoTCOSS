@@ -247,35 +247,6 @@ void isActive
     class="fixed left-0 bottom-0 w-[240px] bg-[#111827] border-r border-gray-800 flex flex-col z-40"
     :style="{ top: 'var(--topbar-height, 60px)' }"
   >
-    <!-- 상단 헤더(공간 분산 + 제품 느낌) -->
-    <div class="px-5 pt-6 pb-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <span class="w-2.5 h-2.5 rounded-full bg-white/70" />
-          <div class="leading-tight">
-            <p class="text-sm font-semibold text-gray-200">Navigation</p>
-            <p class="text-[11px] text-gray-500">빠른 메뉴</p>
-          </div>
-        </div>
-
-        <!-- 상태 뱃지 -->
-        <span
-          :class="[
-            'text-[11px] font-semibold px-2.5 py-1 rounded-full border',
-            status === 'online'
-              ? 'text-green-300 border-green-500/20 bg-green-500/10'
-              : status === 'offline'
-                ? 'text-red-300 border-red-500/20 bg-red-500/10'
-                : 'text-yellow-300 border-yellow-500/20 bg-yellow-500/10',
-          ]"
-        >
-          {{ status === 'online' ? 'ONLINE' : status === 'offline' ? 'OFFLINE' : 'CHECKING' }}
-        </span>
-      </div>
-
-      <!-- 얇은 구분선 -->
-      <div class="mt-4 h-px bg-gradient-to-r from-transparent via-gray-700/60 to-transparent" />
-    </div>
 
     <!-- 메인 내비게이션: 중앙으로 내려오는 느낌 -->
     <nav class="flex-1 px-4 overflow-y-auto flex">
