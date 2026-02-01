@@ -13,9 +13,47 @@ from app.database import get_db
 from app.models.schedule import Schedule
 from app.models.device_mac import DeviceMac
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
+from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 logger = logging.getLogger(__name__)
+
+# 한국 시간대
+KST = timezone(timedelta(hours=9))
+
+
+@router.get("/debug/status", summary="스케줄 디버그 정보")
+async def get_schedule_debug_status(
+    db: AsyncSession = Depends(get_db),
+):
+    """스케줄 서비스 상태 및 현재 시간 정보"""
+    from app.services.schedule_service import schedule_service
+    
+    now = datetime.now(KST)
+    
+    # 모든 스케줄 조회
+    result = await db.execute(select(Schedule))
+    all_schedules = result.scalars().all()
+    
+    schedule_info = []
+    for s in all_schedules:
+        schedule_info.append({
+            "id": s.id,
+            "name": s.schedule_name,
+            "mac": s.device_mac,
+            "start": str(s.start_time),
+            "end": str(s.end_time),
+            "enabled": s.enabled,
+            "days": s.days_of_week
+        })
+    
+    return {
+        "service_running": schedule_service.is_running,
+        "current_time_kst": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "current_weekday": now.weekday(),
+        "total_schedules": len(all_schedules),
+        "schedules": schedule_info
+    }
 
 
 @router.post("", response_model=ScheduleResponse, summary="스케줄 생성")
