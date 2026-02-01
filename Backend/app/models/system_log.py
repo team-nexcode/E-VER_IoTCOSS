@@ -16,7 +16,10 @@ KST = timezone(timedelta(hours=9))
 
 def get_kst_now():
     """KST 시간을 timezone-naive로 반환"""
-    return datetime.now(KST).replace(tzinfo=None)
+    kst_time = datetime.now(KST)
+    # timezone 정보를 완전히 제거
+    return datetime(kst_time.year, kst_time.month, kst_time.day,
+                   kst_time.hour, kst_time.minute, kst_time.second, kst_time.microsecond)
 
 
 class SystemLog(Base):
