@@ -30,6 +30,11 @@ export const useDeviceStore = defineStore('device', () => {
   const dailyPowerTotal = ref<DailyPowerPoint[]>([])
   const dailyPowerByDevice = ref<Record<number, DailyPowerPoint[]>>({})
 
+  // 백엔드에서 전달받는 전력량 (kWh)
+  const monthlyEnergy = ref(0)
+  const yesterdayEnergy = ref(0)
+  const todayEnergy = ref(0)
+
   const powerSummary = computed<PowerSummary>(() => {
     const devs = devices.value
     const total = devs.length
@@ -41,9 +46,9 @@ export const useDeviceStore = defineStore('device', () => {
 
     return {
       totalPower,
-      monthlyEnergy: 0,
-      yesterdayEnergy: 0,
-      todayEnergy: 0,
+      monthlyEnergy: monthlyEnergy.value,
+      yesterdayEnergy: yesterdayEnergy.value,
+      todayEnergy: todayEnergy.value,
       activeDevices: activeCount,
       totalDevices: total,
       avgTemperature: avgTemp,
@@ -90,6 +95,12 @@ export const useDeviceStore = defineStore('device', () => {
     outletPositions.value = outletPositions.value.filter((p) => deviceIds.has(p.deviceId))
   }
 
+  function setPowerSummary(data: Record<string, unknown>) {
+    if (data.monthly_energy_kwh != null) monthlyEnergy.value = data.monthly_energy_kwh as number
+    if (data.yesterday_energy_kwh != null) yesterdayEnergy.value = data.yesterday_energy_kwh as number
+    if (data.today_energy_kwh != null) todayEnergy.value = data.today_energy_kwh as number
+  }
+
   function updateDeviceSensor(data: Record<string, unknown>) {
     const mac = data.device_mac as string
     if (!mac) return
@@ -106,6 +117,9 @@ export const useDeviceStore = defineStore('device', () => {
       if (data.timestamp) device.updatedAt = data.timestamp as string
       if (data.is_online !== undefined) device.isOnline = data.is_online as boolean
     }
+
+    // 오늘 전력량 실시간 갱신
+    if (data.today_energy_kwh != null) todayEnergy.value = data.today_energy_kwh as number
   }
 
   function selectDevice(id: number | null) {
@@ -128,6 +142,7 @@ export const useDeviceStore = defineStore('device', () => {
     dailyPowerTotal,
     dailyPowerByDevice,
     setDevices,
+    setPowerSummary,
     updateDeviceSensor,
     selectDevice,
     updatePosition,

@@ -19,7 +19,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker, init_energy_accumulator, accumulate_energy
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -62,7 +62,8 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("데이터베이스 테이블 초기화 완료")
 
-    # 오프라인 감지 백그라운드 태스크 시작
+    # 전력량 누적기 초기화 + 오프라인 감지 백그라운드 태스크 시작
+    await init_energy_accumulator()
     offline_checker_task = start_offline_checker()
 
     # MQTT 브로커 연결 시도
@@ -126,16 +127,22 @@ async def lifespan(app: FastAPI):
                                 except Exception:
                                     con = {}
 
+                            energy_amp = float(con["energy"]) if "energy" in con else None
+
+                            # 오늘 전력량 실시간 누적
+                            today_kwh = accumulate_energy(mac_addr, energy_amp, parsed_ts)
+
                             update_data = {
                                 "device_mac": mac_addr,
                                 "device_name": mac_info["device_name"],
                                 "location": mac_info["location"],
                                 "temperature": float(con["temp"]) if "temp" in con else None,
                                 "humidity": float(con["humi"]) if "humi" in con else None,
-                                "energy_amp": float(con["energy"]) if "energy" in con else None,
+                                "energy_amp": energy_amp,
                                 "relay_status": str(con["status"]) if "status" in con else None,
                                 "timestamp": str(parsed_ts) if parsed_ts else None,
                                 "is_online": True,
+                                "today_energy_kwh": round(today_kwh, 4),
                             }
 
                 # ── FAST PATH: 대시보드 업데이트를 최우선 브로드캐스트 ──

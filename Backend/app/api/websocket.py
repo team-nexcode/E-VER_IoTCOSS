@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime, timedelta
 from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -21,6 +22,7 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 OFFLINE_THRESHOLD = 30  # 초
+VOLTAGE = 220  # AC 전압
 router = APIRouter(tags=["WebSocket"])
 
 
@@ -106,6 +108,129 @@ async def get_cached_device_mac(mac_addr: str) -> dict | None:
 def invalidate_device_mac_cache() -> None:
     """device_mac CRUD 시 캐시를 무효화합니다."""
     _device_mac_cache.clear()
+
+
+# ── 전력량 계산 ──
+
+async def calculate_energy_kwh(start_time: datetime, end_time: datetime) -> float:
+    """주어진 기간의 총 전력량(kWh)을 사다리꼴 적분으로 계산합니다."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Device.device_mac, Device.energy_amp, Device.timestamp)
+            .where(Device.timestamp >= start_time)
+            .where(Device.timestamp <= end_time)
+            .where(Device.energy_amp.isnot(None))
+            .where(Device.timestamp.isnot(None))
+            .order_by(Device.device_mac, Device.timestamp)
+        )
+        rows = result.all()
+
+    if not rows:
+        return 0.0
+
+    total_wh = 0.0
+    prev_mac = None
+    prev_amp = 0.0
+    prev_ts = None
+
+    for mac, amp, ts in rows:
+        if mac == prev_mac and prev_ts is not None:
+            dt_hours = (ts - prev_ts).total_seconds() / 3600
+            if 0 < dt_hours < 1:
+                total_wh += ((prev_amp + amp) / 2) * VOLTAGE * dt_hours
+        prev_mac = mac
+        prev_amp = amp
+        prev_ts = ts
+
+    return total_wh / 1000
+
+
+async def get_power_summary() -> dict:
+    """이번 달 / 어제 / 오늘 전력량(kWh)을 반환합니다."""
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
+    month_start = today_start.replace(day=1)
+
+    today_kwh = get_today_energy_kwh()
+    monthly_energy, yesterday_energy = await asyncio.gather(
+        calculate_energy_kwh(month_start, now),
+        calculate_energy_kwh(yesterday_start, today_start),
+    )
+
+    return {
+        "monthly_energy_kwh": round(monthly_energy, 4),
+        "yesterday_energy_kwh": round(yesterday_energy, 4),
+        "today_energy_kwh": round(today_kwh, 4),
+    }
+
+
+# ── 오늘 전력량 실시간 누적기 ──
+
+_today_energy_wh: float = 0.0
+_today_date: object = None  # date
+_last_energy_readings: dict[str, tuple[float, datetime]] = {}
+
+
+async def init_energy_accumulator() -> None:
+    """서버 시작 시 오늘 전력량을 DB에서 계산하여 누적기를 초기화합니다."""
+    global _today_energy_wh, _today_date, _last_energy_readings
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    _today_energy_wh = (await calculate_energy_kwh(today_start, now)) * 1000
+    _today_date = now.date()
+    _last_energy_readings = {}
+
+    # 디바이스별 마지막 읽기값 로드 (이후 증분 계산용)
+    async with async_session() as session:
+        subq = (
+            select(Device.device_mac, func.max(Device.id).label("max_id"))
+            .where(Device.timestamp >= today_start)
+            .where(Device.energy_amp.isnot(None))
+            .group_by(Device.device_mac)
+            .subquery()
+        )
+        result = await session.execute(
+            select(Device.device_mac, Device.energy_amp, Device.timestamp)
+            .join(subq, (Device.device_mac == subq.c.device_mac) & (Device.id == subq.c.max_id))
+        )
+        for mac, amp, ts in result.all():
+            if amp is not None and ts is not None:
+                _last_energy_readings[mac] = (amp, ts)
+
+    logger.info(f"전력량 누적기 초기화 완료: {_today_energy_wh:.1f} Wh")
+
+
+def accumulate_energy(mac: str, energy_amp: float | None, timestamp: datetime | None) -> float:
+    """새 센서 데이터로 오늘 전력량을 증분 누적합니다. 현재 오늘 kWh를 반환합니다."""
+    global _today_energy_wh, _today_date, _last_energy_readings
+
+    today = datetime.now().date()
+    if _today_date != today:
+        _today_energy_wh = 0.0
+        _today_date = today
+        _last_energy_readings = {}
+
+    if energy_amp is None or timestamp is None:
+        return _today_energy_wh / 1000
+
+    last = _last_energy_readings.get(mac)
+    if last:
+        last_amp, last_ts = last
+        dt_hours = (timestamp - last_ts).total_seconds() / 3600
+        if 0 < dt_hours < 1:
+            _today_energy_wh += ((last_amp + energy_amp) / 2) * VOLTAGE * dt_hours
+
+    _last_energy_readings[mac] = (energy_amp, timestamp)
+    return _today_energy_wh / 1000
+
+
+def get_today_energy_kwh() -> float:
+    """현재 누적된 오늘 전력량(kWh)을 반환합니다."""
+    if _today_date != datetime.now().date():
+        return 0.0
+    return _today_energy_wh / 1000
 
 
 async def get_all_device_status() -> list:
@@ -233,10 +358,17 @@ async def websocket_devices(websocket: WebSocket):
     """
     await manager.connect(websocket)
 
-    # 연결 직후 현재 디바이스 상태 1회 전송
-    devices_status = await get_all_device_status()
+    # 연결 직후 현재 디바이스 상태 + 전력량 요약 1회 전송
+    devices_status, power_summary = await asyncio.gather(
+        get_all_device_status(),
+        get_power_summary(),
+    )
     await manager.send_personal_message(
         {"type": "device_status", "data": devices_status},
+        websocket,
+    )
+    await manager.send_personal_message(
+        {"type": "power_summary", "data": power_summary},
         websocket,
     )
 
