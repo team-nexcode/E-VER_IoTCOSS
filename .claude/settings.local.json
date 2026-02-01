@@ -20,7 +20,8 @@
       "Bash(PGPASSWORD=password psql:*)",
       "Bash(conda list:*)",
       "Bash(/tmp/db_check_venv/bin/pip install:*)",
-      "Bash(/tmp/db_check_venv/bin/python3:*)"
+      "Bash(/tmp/db_check_venv/bin/python3:*)",
+      "WebFetch(domain:iotcoss.nexcode.kr)"
     ]
   }
 }

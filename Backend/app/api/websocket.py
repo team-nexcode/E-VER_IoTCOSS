@@ -7,8 +7,11 @@ import asyncio
 import json
 import logging
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List
+
+# 한국 표준시 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select, desc, func
@@ -165,7 +168,7 @@ async def calculate_energy_kwh(from_date: date, to_date: date | None = None) -> 
 async def get_power_summary() -> dict:
     """이번 달 / 어제 / 오늘 전력량(kWh)을 반환합니다.
     서버 시간 기준 일자(DATE)로 오늘/어제를 구분합니다."""
-    today = datetime.now().date()
+    today = datetime.now(KST).date()
     yesterday = today - timedelta(days=1)
     month_start = today.replace(day=1)
 
@@ -193,7 +196,7 @@ async def init_energy_accumulator() -> None:
     """서버 시작 시 오늘 전력량을 DB에서 계산하여 누적기를 초기화합니다.
     서버 시간 기준 오늘 일자(DATE)에 해당하는 레코드만 사용합니다."""
     global _today_energy_wh, _today_date, _last_energy_readings
-    today = datetime.now().date()
+    today = datetime.now(KST).date()
     today_start = datetime.combine(today, datetime.min.time())
 
     _today_energy_wh = (await calculate_energy_kwh(today)) * 1000
@@ -224,7 +227,7 @@ def accumulate_energy(mac: str, energy_amp: float | None, timestamp: datetime | 
     """새 센서 데이터로 오늘 전력량을 증분 누적합니다. 현재 오늘 kWh를 반환합니다."""
     global _today_energy_wh, _today_date, _last_energy_readings
 
-    today = datetime.now().date()
+    today = datetime.now(KST).date()
     if _today_date != today:
         _today_energy_wh = 0.0
         _today_date = today
@@ -246,7 +249,7 @@ def accumulate_energy(mac: str, energy_amp: float | None, timestamp: datetime | 
 
 def get_today_energy_kwh() -> float:
     """현재 누적된 오늘 전력량(kWh)을 반환합니다."""
-    if _today_date != datetime.now().date():
+    if _today_date != datetime.now(KST).date():
         return 0.0
     return _today_energy_wh / 1000
 

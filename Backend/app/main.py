@@ -6,7 +6,7 @@ IoTCOSS 백엔드 FastAPI 앱 진입점
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -298,8 +298,9 @@ async def debug_energy():
     """전력량 계산 진단 엔드포인트 — 날짜별 레코드 수, 계산 결과 확인용"""
     from sqlalchemy import select, func, text
     from app.models.device import Device as DeviceModel
+    from app.api.websocket import KST
 
-    now = datetime.now()
+    now = datetime.now(KST)
     today = now.date()
     yesterday = today - timedelta(days=1)
     month_start = today.replace(day=1)
