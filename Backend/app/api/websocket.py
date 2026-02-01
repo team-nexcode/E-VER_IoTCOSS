@@ -135,23 +135,31 @@ async def calculate_energy_kwh(from_date: date, to_date: date | None = None) -> 
         rows = result.all()
 
     if not rows:
+        logger.info(f"전력량 계산: {from_date}~{to_date} → 레코드 0건")
         return 0.0
 
     total_wh = 0.0
     prev_mac = None
     prev_amp = 0.0
     prev_ts = None
+    intervals = 0
 
     for mac, amp, ts in rows:
         if mac == prev_mac and prev_ts is not None:
             dt_hours = (ts - prev_ts).total_seconds() / 3600
-            if 0 < dt_hours < 1:
+            if 0 < dt_hours < 6:
                 total_wh += ((prev_amp + amp) / 2) * VOLTAGE * dt_hours
+                intervals += 1
         prev_mac = mac
         prev_amp = amp
         prev_ts = ts
 
-    return total_wh / 1000
+    kwh = total_wh / 1000
+    logger.info(
+        f"전력량 계산: {from_date}~{to_date} → "
+        f"레코드 {len(rows)}건, 유효구간 {intervals}개, 결과 {kwh:.4f} kWh"
+    )
+    return kwh
 
 
 async def get_power_summary() -> dict:
