@@ -157,7 +157,8 @@ async function confirmModal() {
   const selectedDevice = devices.value.find(d => d.id === selectedDeviceId.value)
   if (!selectedDevice) return
   
-  // ON: 선택 시간에 켜기, OFF: 선택 시간에 끄기
+  // ON: 선택 시간에 켜기 (end는 무시용으로 23:59:59)
+  // OFF: 선택 시간에 끄기 (start는 무시용으로 00:00:00)
   const selectedTime = `${pad2(hour.value)}:${pad2(minute.value)}:00`
   
   const scheduleName = action.value === 'on'
@@ -167,8 +168,8 @@ async function confirmModal() {
   const success = await scheduleStore.createSchedule({
     device_mac: selectedDevice.deviceMac,
     schedule_name: scheduleName,
-    start_time: action.value === 'on' ? selectedTime : '00:00:00', // ON이면 이 시간에 켜기
-    end_time: action.value === 'off' ? selectedTime : '23:59:59',   // OFF면 이 시간에 끄기
+    start_time: action.value === 'on' ? selectedTime : '00:00:00', // ON이면 이 시간에 켜기, OFF면 무시
+    end_time: action.value === 'off' ? selectedTime : '23:59:59',   // OFF면 이 시간에 끄기, ON이면 무시
     enabled: true,
     days_of_week: '0,1,2,3,4,5,6'
   })
