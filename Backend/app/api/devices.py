@@ -4,6 +4,7 @@ MQTT에서 파싱된 디바이스 센서 데이터를 조회하는 엔드포인�
 """
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.device_mac import DeviceMac
+from app.models.device_switch import DeviceSwitch
 from app.schemas.device import (
     DeviceListResponse,
     DeviceResponse,
@@ -66,7 +68,7 @@ async def control_device_power(
         result = await db.execute(select(DeviceMac))
         all_devices = result.scalars().all()
         
-        # 3. 각 디바이스의 desired_state 조회 (제어 명령 상태)
+        # 3. 각 디바이스의 desired_state 조회 (device_switch 테이블)
         device_control_map = {}
         
         for device in all_devices:
@@ -74,8 +76,12 @@ async def control_device_power(
                 # 제어 대상 디바이스는 요청받은 새 상태로 설정
                 device_control_map[device.device_mac] = request.power_state
             else:
-                # 나머지 디바이스는 현재 desired_state 사용 (우리가 마지막으로 보낸 명령)
-                device_control_map[device.device_mac] = device.desired_state if device.desired_state else "off"
+                # 나머지 디바이스는 device_switch에서 현재 상태 조회
+                switch_state = await db.scalar(
+                    select(DeviceSwitch.desired_state)
+                    .where(DeviceSwitch.device_mac == device.device_mac)
+                )
+                device_control_map[device.device_mac] = switch_state if switch_state else "off"
         
         # 4. Mobius switch 컨테이너에 전송할 데이터 구성
         payload = {
@@ -87,8 +93,23 @@ async def control_device_power(
         logger.info(f"디바이스 전원 제어 요청: MAC={request.mac_address}, 상태={request.power_state}")
         logger.debug(f"전체 디바이스 상태 전송: {device_control_map}")
         
-        # 5. device_mac 테이블의 desired_state 업데이트 (제어 명령 상태 저장)
-        target_device.desired_state = request.power_state
+        # 5. device_switch 테이블에 제어 명령 상태 저장/업데이트
+        existing_switch = await db.scalar(
+            select(DeviceSwitch).where(DeviceSwitch.device_mac == request.mac_address)
+        )
+        
+        if existing_switch:
+            # 기존 레코드 업데이트
+            existing_switch.desired_state = request.power_state
+            existing_switch.updated_at = datetime.utcnow()
+        else:
+            # 새 레코드 생성
+            new_switch = DeviceSwitch(
+                device_mac=request.mac_address,
+                desired_state=request.power_state,
+            )
+            db.add(new_switch)
+        
         await db.commit()
         logger.info(f"제어 명령 상태 저장: {request.mac_address} → desired_state={request.power_state}")
         
@@ -137,6 +158,12 @@ async def get_devices_power_status(
         status_list = []
         
         for device in all_devices:
+            # device_switch에서 제어 명령 상태 조회
+            switch_state = await db.scalar(
+                select(DeviceSwitch.desired_state)
+                .where(DeviceSwitch.device_mac == device.device_mac)
+            )
+            
             # 최신 실제 상태 조회 (선택적 - 디버깅용)
             latest_status_result = await db.execute(
                 select(Device.relay_status)
@@ -150,7 +177,7 @@ async def get_devices_power_status(
                 "device_name": device.device_name,
                 "device_mac": device.device_mac,
                 "location": device.location,
-                "desired_state": device.desired_state or "off",  # 제어용 (Frontend 버튼 상태)
+                "desired_state": switch_state or "off",  # 제어용 (Frontend 버튼 상태)
                 "actual_state": actual_status,  # 참고용 (실제 아두이노 상태)
             })
         
