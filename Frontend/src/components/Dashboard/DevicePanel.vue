@@ -94,25 +94,46 @@ const { devices } = storeToRefs(store)
           </div>
         </div>
 
-        <!-- On/Off 상태 표시 (표시 전용) -->
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
-            <Power class="w-3.5 h-3.5 text-blue-400" />
-            <span class="text-[10px] text-gray-400">전원</span>
+        <!-- On/Off 상태 표시 + 제어 버튼 -->
+        <div class="flex items-center justify-between gap-2">
+          <!-- 상태 표시 (표시 전용) -->
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
+              <Power class="w-3.5 h-3.5 text-blue-400" />
+              <span class="text-[10px] text-gray-400">상태</span>
+            </div>
+            <span
+              :class="[
+                'flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium',
+                !device.isOnline
+                  ? 'bg-gray-700 text-gray-500'
+                  : device.isActive
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-gray-700/50 text-gray-400 border border-gray-600/30',
+              ]"
+            >
+              <div :class="['w-1.5 h-1.5 rounded-full', device.isActive && device.isOnline ? 'bg-green-400' : 'bg-gray-500']" />
+              {{ !device.isOnline ? '오프라인' : device.isActive ? 'ON' : 'OFF' }}
+            </span>
           </div>
-          <span
+          
+          <!-- 전원 제어 버튼 -->
+          <button
+            @click.stop="store.toggleDevicePower(device.deviceMac)"
+            :disabled="!device.isOnline"
             :class="[
-              'flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium',
+              'px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200',
+              'flex items-center gap-1.5',
               !device.isOnline
-                ? 'bg-gray-700 text-gray-500'
+                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                 : device.isActive
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  : 'bg-gray-700/50 text-gray-400 border border-gray-600/30',
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+                  : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30',
             ]"
           >
-            <div :class="['w-1.5 h-1.5 rounded-full', device.isActive && device.isOnline ? 'bg-green-400' : 'bg-gray-500']" />
-            {{ !device.isOnline ? '오프라인' : device.isActive ? 'ON' : 'OFF' }}
-          </span>
+            <Power class="w-3 h-3" />
+            <span>{{ device.isActive ? 'OFF' : 'ON' }}</span>
+          </button>
         </div>
       </div>
     </div>

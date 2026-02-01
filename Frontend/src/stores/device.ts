@@ -119,6 +119,42 @@ export const useDeviceStore = defineStore('device', () => {
     }
   }
 
+  async function toggleDevicePower(deviceMac: string) {
+    const device = devices.value.find((d) => d.deviceMac === deviceMac)
+    if (!device) return
+
+    const newState = device.isActive ? 'off' : 'on'
+
+    try {
+      // 낙관적 업데이트 (즉시 UI 반영)
+      device.isActive = !device.isActive
+
+      // Backend API 호출 (Vite proxy를 통해 자동으로 백엔드 서버로 전달됨)
+      const response = await fetch('/api/devices/power/control', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mac_address: deviceMac,
+          power_state: newState,
+        }),
+      })
+
+      if (!response.ok) {
+        // 실패 시 원래 상태로 복구
+        device.isActive = !device.isActive
+        console.error('전원 제어 실패:', await response.text())
+        alert('전원 제어에 실패했습니다.')
+      }
+    } catch (error) {
+      // 에러 시 원래 상태로 복구
+      device.isActive = !device.isActive
+      console.error('전원 제어 오류:', error)
+      alert('전원 제어 중 오류가 발생했습니다.')
+    }
+  }
+
   return {
     devices,
     outletPositions,
@@ -130,5 +166,6 @@ export const useDeviceStore = defineStore('device', () => {
     updateDeviceSensor,
     selectDevice,
     updatePosition,
+    toggleDevicePower,
   }
 })

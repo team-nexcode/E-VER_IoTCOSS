@@ -174,13 +174,15 @@ async def lifespan(app: FastAPI):
 
                             # 디바이스 센서 데이터 + 센서 로그
                             if update_data:
+                                # MQTT로 수신한 데이터는 아두이노의 "실제 상태"를 반영
+                                # desired_state(우리가 보낸 명령)와 별개로 저장
                                 device_entry = Device(
                                     device_name=update_data["device_name"],
                                     device_mac=update_data["device_mac"],
                                     temperature=update_data["temperature"],
                                     humidity=update_data["humidity"],
                                     energy_amp=update_data["energy_amp"],
-                                    relay_status=update_data["relay_status"],
+                                    relay_status=update_data["relay_status"],  # 실제 상태
                                     timestamp=parsed_ts,
                                 )
                                 session.add(device_entry)
