@@ -88,7 +88,8 @@ async def control_device_power(
         # oneM2M ContentInstance의 con 필드는 문자열이어야 합니다
         payload = {
             "m2m:cin": {
-                "con": json.dumps(device_control_map)
+                "con": device_control_map,
+                "lbl": ["smart_plug"]
             }
         }
         
