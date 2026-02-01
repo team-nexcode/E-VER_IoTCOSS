@@ -34,15 +34,26 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        disconnected = []
-        for connection in self.active_connections:
+        if not self.active_connections:
+            return
+
+        async def _safe_send(conn: WebSocket) -> bool:
             try:
-                await connection.send_json(message)
+                await conn.send_json(message)
+                return True
             except Exception:
-                disconnected.append(connection)
-        for conn in disconnected:
-            if conn in self.active_connections:
-                self.active_connections.remove(conn)
+                return False
+
+        results = await asyncio.gather(
+            *[_safe_send(conn) for conn in self.active_connections]
+        )
+        to_remove = [
+            self.active_connections[i]
+            for i, ok in enumerate(results)
+            if not ok
+        ]
+        for conn in to_remove:
+            self.active_connections.remove(conn)
 
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         await websocket.send_json(message)
@@ -50,6 +61,30 @@ class ConnectionManager:
 
 # 전역 연결 관리자 인스턴스
 manager = ConnectionManager()
+
+# device_mac 캐시 (MAC → {device_name, location})
+_device_mac_cache: dict[str, dict] = {}
+
+
+async def get_cached_device_mac(mac_addr: str) -> dict | None:
+    """device_mac 테이블을 캐시하여 빠르게 조회합니다. 캐시 미스 시 DB 조회."""
+    if mac_addr in _device_mac_cache:
+        return _device_mac_cache[mac_addr]
+    async with async_session() as session:
+        result = await session.execute(
+            select(DeviceMac).where(DeviceMac.device_mac == mac_addr)
+        )
+        entry = result.scalar_one_or_none()
+        if entry:
+            info = {"device_name": entry.device_name, "location": entry.location}
+            _device_mac_cache[mac_addr] = info
+            return info
+    return None
+
+
+def invalidate_device_mac_cache() -> None:
+    """device_mac CRUD 시 캐시를 무효화합니다."""
+    _device_mac_cache.clear()
 
 
 async def get_all_device_status() -> list:

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.device_mac import DeviceMac
 from app.models.system_log import SystemLog
-from app.api.websocket import broadcast_system_log
+from app.api.websocket import broadcast_system_log, invalidate_device_mac_cache
 from app.schemas.device_mac import (
     DeviceMacCreate,
     DeviceMacListResponse,
@@ -76,6 +76,7 @@ async def create_device_mac(data: DeviceMacCreate, db: AsyncSession = Depends(ge
         "location": device.location,
     }
     await _write_system_log(db, "INSERT", detail_data)
+    invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] INSERT: {device.device_name} ({device.device_mac})",
         detail=json.dumps({"table": "device_mac", "action": "INSERT", **detail_data}, ensure_ascii=False),
@@ -127,6 +128,7 @@ async def update_device_mac(
         "old_values": old_values,
     }
     await _write_system_log(db, "UPDATE", update_detail)
+    invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] UPDATE: {device.device_name} ({device.device_mac})",
         detail=json.dumps({"table": "device_mac", "action": "UPDATE", **update_detail}, ensure_ascii=False),
@@ -152,6 +154,7 @@ async def delete_device_mac(device_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(device)
 
     await _write_system_log(db, "DELETE", deleted_info)
+    invalidate_device_mac_cache()
     await broadcast_system_log(
         message=f"[device_mac] DELETE: {deleted_info['device_name']} ({deleted_info['device_mac']})",
         detail=json.dumps({"table": "device_mac", "action": "DELETE", **deleted_info}, ensure_ascii=False),

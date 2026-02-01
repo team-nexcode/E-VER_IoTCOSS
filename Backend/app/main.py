@@ -4,6 +4,7 @@ IoTCOSS 백엔드 FastAPI 앱 진입점
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
@@ -18,7 +19,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -32,8 +33,6 @@ from app.services.mobius_service import mobius_service
 from app.database import async_session
 from app.models.system_log import SystemLog
 from app.models.device import Device
-from app.models.device_mac import DeviceMac
-from sqlalchemy import select
 
 # 모든 모델을 import하여 create_all 시 테이블이 생성되도록 함
 import app.models  # noqa: F401
@@ -72,10 +71,9 @@ async def lifespan(app: FastAPI):
             await mqtt_service.subscribe(settings.MQTT_TOPIC)
             logger.info(f"MQTT 토픽 구독: {settings.MQTT_TOPIC}")
 
-            # MQTT 메시지 수신 → DB 저장 + WebSocket 브로드캐스트
+            # MQTT 메시지 수신 → 대시보드 즉시 업데이트 + DB 저장/브로드캐스트 병렬 처리
             async def on_mqtt_message(topic: str, payload):
                 logger.info(f"MQTT 수신: {topic} → {payload}")
-                import json
 
                 # payload를 dict로 파싱
                 try:
@@ -84,7 +82,6 @@ async def lifespan(app: FastAPI):
                     data = {}
 
                 # oneM2M 구조에서 m2m:cin 객체 추출
-                # 실제 구조: payload > pc > m2m:sgn > nev > rep > m2m:cin
                 cin = None
                 if "pc" in data:
                     sgn = data["pc"].get("m2m:sgn", {})
@@ -104,125 +101,108 @@ async def lifespan(app: FastAPI):
                         except Exception:
                             parsed_ts = None
 
-                # 1) 시스템 로그 저장
-                try:
-                    detail = json.dumps({
-                        "broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
-                        "topic": topic,
-                        "subscribe_filter": settings.MQTT_TOPIC,
-                        "payload": payload,
-                    }, ensure_ascii=False)
-
-                    async with async_session() as session:
-                        log_entry = SystemLog(
-                            type="MESSAGE",
-                            level="info",
-                            source="MQTT",
-                            message=f"토픽: {topic}",
-                            detail=detail,
-                        )
-                        if parsed_ts:
-                            log_entry.timestamp = parsed_ts
-                        session.add(log_entry)
-                        await session.commit()
-                except Exception as e:
-                    logger.error(f"시스템 로그 DB 저장 실패: {e}")
-
-                # 2) 디바이스 센서 데이터 파싱 및 저장
+                # ── 디바이스 센서 데이터 파싱 (DB 접근 없이 빠르게) ──
+                update_data = None
+                mac_addr = None
                 if cin:
+                    lbl = cin.get("lbl", [])
+                    for item in lbl:
+                        if isinstance(item, str) and ":" in item and len(item) == 17:
+                            mac_addr = item
+                            break
+
+                    if mac_addr:
+                        mac_info = await get_cached_device_mac(mac_addr)
+                        if mac_info:
+                            con = cin.get("con", {})
+                            if isinstance(con, str):
+                                try:
+                                    con = json.loads(con)
+                                except Exception:
+                                    con = {}
+
+                            update_data = {
+                                "device_mac": mac_addr,
+                                "device_name": mac_info["device_name"],
+                                "location": mac_info["location"],
+                                "temperature": float(con["temp"]) if "temp" in con else None,
+                                "humidity": float(con["humi"]) if "humi" in con else None,
+                                "energy_amp": float(con["energy"]) if "energy" in con else None,
+                                "relay_status": str(con["status"]) if "status" in con else None,
+                                "timestamp": str(parsed_ts) if parsed_ts else None,
+                            }
+
+                # ── FAST PATH: 대시보드 업데이트를 최우선 브로드캐스트 ──
+                if update_data:
+                    await broadcast_device_update(update_data)
+
+                # ── DB 저장 + 나머지 브로드캐스트 병렬 처리 ──
+                mqtt_detail = json.dumps({
+                    "broker": f"mqtt://{settings.MQTT_BROKER}:{settings.MQTT_PORT}",
+                    "topic": topic,
+                    "subscribe_filter": settings.MQTT_TOPIC,
+                    "payload": payload,
+                }, ensure_ascii=False)
+
+                sensor_detail = None
+                sensor_message = None
+                if update_data:
+                    sensor_detail = json.dumps({
+                        "table": "devices",
+                        "action": "INSERT",
+                        "device_name": update_data["device_name"],
+                        "device_mac": update_data["device_mac"],
+                        "temperature": update_data["temperature"],
+                        "humidity": update_data["humidity"],
+                        "energy_amp": update_data["energy_amp"],
+                        "relay_status": update_data["relay_status"],
+                        "timestamp": update_data["timestamp"],
+                    }, ensure_ascii=False)
+                    sensor_message = f"[devices] INSERT: {update_data['device_name']} ({update_data['device_mac']})"
+
+                async def _save_to_db():
                     try:
-                        # lbl에서 MAC 주소 추출
-                        lbl = cin.get("lbl", [])
-                        mac_addr = None
-                        for item in lbl:
-                            if isinstance(item, str) and ":" in item and len(item) == 17:
-                                mac_addr = item
-                                break
+                        async with async_session() as session:
+                            # MQTT 수신 로그
+                            mqtt_log = SystemLog(
+                                type="MESSAGE", level="info", source="MQTT",
+                                message=f"토픽: {topic}", detail=mqtt_detail,
+                            )
+                            if parsed_ts:
+                                mqtt_log.timestamp = parsed_ts
+                            session.add(mqtt_log)
 
-                        if mac_addr:
-                            async with async_session() as session:
-                                # device_mac 테이블에서 매칭 확인
-                                result = await session.execute(
-                                    select(DeviceMac).where(DeviceMac.device_mac == mac_addr)
+                            # 디바이스 센서 데이터 + 센서 로그
+                            if update_data:
+                                device_entry = Device(
+                                    device_name=update_data["device_name"],
+                                    device_mac=update_data["device_mac"],
+                                    temperature=update_data["temperature"],
+                                    humidity=update_data["humidity"],
+                                    energy_amp=update_data["energy_amp"],
+                                    relay_status=update_data["relay_status"],
+                                    timestamp=parsed_ts,
                                 )
-                                mac_entry = result.scalar_one_or_none()
+                                session.add(device_entry)
 
-                                if mac_entry:
-                                    # con 데이터 추출 (문자열일 수도 있으므로 처리)
-                                    con = cin.get("con", {})
-                                    if isinstance(con, str):
-                                        try:
-                                            con = json.loads(con)
-                                        except Exception:
-                                            con = {}
+                                sensor_log = SystemLog(
+                                    type="SYSTEM", level="info", source="App",
+                                    message=sensor_message, detail=sensor_detail,
+                                )
+                                if parsed_ts:
+                                    sensor_log.timestamp = parsed_ts
+                                session.add(sensor_log)
 
-                                    device_entry = Device(
-                                        device_name=mac_entry.device_name,
-                                        device_mac=mac_addr,
-                                        temperature=float(con["temp"]) if "temp" in con else None,
-                                        humidity=float(con["humi"]) if "humi" in con else None,
-                                        energy_amp=float(con["energy"]) if "energy" in con else None,
-                                        relay_status=str(con["status"]) if "status" in con else None,
-                                        timestamp=parsed_ts,
-                                    )
-                                    session.add(device_entry)
-                                    await session.flush()
-
-                                    # 시스템 로그: 디바이스 센서 데이터 저장
-                                    sensor_log = SystemLog(
-                                        type="SYSTEM",
-                                        level="info",
-                                        source="App",
-                                        message=f"[devices] INSERT: {mac_entry.device_name} ({mac_addr})",
-                                        detail=json.dumps({
-                                            "table": "devices",
-                                            "action": "INSERT",
-                                            "device_name": mac_entry.device_name,
-                                            "device_mac": mac_addr,
-                                            "temperature": device_entry.temperature,
-                                            "humidity": device_entry.humidity,
-                                            "energy_amp": device_entry.energy_amp,
-                                            "relay_status": device_entry.relay_status,
-                                            "timestamp": str(parsed_ts) if parsed_ts else None,
-                                        }, ensure_ascii=False),
-                                    )
-                                    if parsed_ts:
-                                        sensor_log.timestamp = parsed_ts
-                                    session.add(sensor_log)
-                                    await session.commit()
-                                    logger.info(f"디바이스 센서 데이터 저장: {mac_entry.device_name} ({mac_addr})")
-
-                                    # WebSocket 실시간 브로드캐스트 (시스템 로그)
-                                    await broadcast_system_log(
-                                        message=f"[devices] INSERT: {mac_entry.device_name} ({mac_addr})",
-                                        detail=json.dumps({
-                                            "table": "devices",
-                                            "action": "INSERT",
-                                            "device_name": mac_entry.device_name,
-                                            "device_mac": mac_addr,
-                                            "temperature": device_entry.temperature,
-                                            "humidity": device_entry.humidity,
-                                            "energy_amp": device_entry.energy_amp,
-                                            "relay_status": device_entry.relay_status,
-                                            "timestamp": str(parsed_ts) if parsed_ts else None,
-                                        }, ensure_ascii=False),
-                                    )
-
-                                    # WebSocket 실시간 브로드캐스트 (디바이스 센서 업데이트)
-                                    await broadcast_device_update({
-                                        "device_mac": mac_addr,
-                                        "device_name": mac_entry.device_name,
-                                        "location": mac_entry.location,
-                                        "temperature": device_entry.temperature,
-                                        "humidity": device_entry.humidity,
-                                        "energy_amp": device_entry.energy_amp,
-                                        "relay_status": device_entry.relay_status,
-                                        "timestamp": str(parsed_ts) if parsed_ts else None,
-                                    })
+                            await session.commit()
                     except Exception as e:
-                        logger.error(f"디바이스 센서 데이터 저장 실패: {e}")
+                        logger.error(f"DB 저장 실패: {e}")
 
-                await broadcast_mqtt_message(topic, payload)
+                # 병렬 실행: DB 저장 + 브로드캐스트들
+                tasks = [_save_to_db(), broadcast_mqtt_message(topic, payload)]
+                if update_data:
+                    tasks.append(broadcast_system_log(message=sensor_message, detail=sensor_detail))
+
+                await asyncio.gather(*tasks)
 
             mqtt_service.set_message_handler(on_mqtt_message)
             mqtt_listen_task = asyncio.create_task(mqtt_service.listen())
