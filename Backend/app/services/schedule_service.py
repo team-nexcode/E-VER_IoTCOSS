@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 
+def get_naive_kst_now():
+    """timezone-naive KST 시간 반환 (DB 저장용)"""
+    kst_time = datetime.now(KST)
+    return datetime(kst_time.year, kst_time.month, kst_time.day,
+                   kst_time.hour, kst_time.minute, kst_time.second, kst_time.microsecond)
+
+
 class ScheduleService:
     """스케줄 실행 서비스"""
     
@@ -55,6 +62,7 @@ class ScheduleService:
             print("[SCHEDULE SERVICE] SystemLog DB 저장 시도...")
             async with get_db_session() as db:
                 start_log = SystemLog(
+                    timestamp=get_naive_kst_now(),
                     type="SYSTEM",
                     level="info",
                     source="Schedule",
@@ -80,8 +88,7 @@ class ScheduleService:
                 # 오류도 SystemLog에 기록
                 try:
                     async with get_db_session() as db:
-                        error_log = SystemLog(
-                            type="ERROR",
+                        error_log = SystemLog(                            timestamp=get_naive_kst_now(),                            type="ERROR",
                             level="error",
                             source="Schedule",
                             message=f"스케줄 체크 중 오류: {str(e)}",
@@ -110,6 +117,7 @@ class ScheduleService:
             # 30초마다 체크 시도는 하지만 같은 분은 스킵
             async with get_db_session() as db:
                 skip_log = SystemLog(
+                    timestamp=get_naive_kst_now(),
                     type="SYSTEM",
                     level="info",
                     source="Schedule",
@@ -134,8 +142,7 @@ class ScheduleService:
             logger.info(f"[스케줄 체크] 활성 스케줄 {len(schedules)}개 발견")
             
             # System Log에 체크 기록
-            check_log = SystemLog(
-                type="SYSTEM",
+            check_log = SystemLog(                timestamp=get_naive_kst_now(),                type="SYSTEM",
                 level="info",
                 source="Schedule",
                 message=f"스케줄 체크: {now.strftime('%H:%M:%S')} | 활성 스케줄 {len(schedules)}개",
@@ -181,6 +188,7 @@ class ScheduleService:
                     "end_original": str(end_time_original)
                 }
                 comparison_log = SystemLog(
+                    timestamp=get_naive_kst_now(),
                     type="SYSTEM",
                     level="info",
                     source="Schedule",
@@ -194,8 +202,7 @@ class ScheduleService:
                 if start_time_original != dt_time(0, 0, 0) and current_time == start_time:
                     logger.info(f"스케줄 실행 (ON): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     
-                    exec_log = SystemLog(
-                        type="SYSTEM",
+                    exec_log = SystemLog(                        timestamp=get_naive_kst_now(),                        type="SYSTEM",
                         level="info",
                         source="Schedule",
                         message=f"ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
@@ -210,8 +217,7 @@ class ScheduleService:
                 elif end_time_original != dt_time(23, 59, 59) and current_time == end_time:
                     logger.info(f"스케줄 실행 (OFF): {schedule.schedule_name} (MAC: {schedule.device_mac})")
                     
-                    exec_log = SystemLog(
-                        type="SYSTEM",
+                    exec_log = SystemLog(                        timestamp=get_naive_kst_now(),                        type="SYSTEM",
                         level="info",
                         source="Schedule",
                         message=f"OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
