@@ -88,6 +88,12 @@ export function useWebSocket(url: string) {
           return
         }
 
+        // 전력량 요약 (연결 직후 1회)
+        if (message.type === 'power_summary' && message.data) {
+          store.setPowerSummary(message.data)
+          return
+        }
+
         // 디바이스 상태 (연결 직후 1회) → 디바이스 업데이트만, 로그 안 남김
         if (message.type === 'device_status' && Array.isArray(message.data)) {
           store.setDevices(message.data)
