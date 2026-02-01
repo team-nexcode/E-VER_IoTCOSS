@@ -19,7 +19,7 @@ const { powerSummary } = storeToRefs(store)
       <div class="flex-1 min-w-0">
         <StatusCard
           title="이번달 누적 전력량"
-          :value="powerSummary.monthlyEnergy.toFixed(1)"
+          :value="powerSummary.monthlyEnergy.toFixed(3)"
           unit="kWh"
           color="blue"
         >
@@ -31,7 +31,7 @@ const { powerSummary } = storeToRefs(store)
       <div class="flex-1 min-w-0">
         <StatusCard
           title="어제 전력량"
-          :value="powerSummary.yesterdayEnergy.toFixed(1)"
+          :value="powerSummary.yesterdayEnergy.toFixed(3)"
           unit="kWh"
           color="yellow"
         >
@@ -43,7 +43,7 @@ const { powerSummary } = storeToRefs(store)
       <div class="flex-1 min-w-0">
         <StatusCard
           title="오늘 전력량"
-          :value="powerSummary.todayEnergy.toFixed(1)"
+          :value="powerSummary.todayEnergy.toFixed(3)"
           unit="kWh"
           color="green"
           :trend="{ value: -12.5, isPositive: true }"
