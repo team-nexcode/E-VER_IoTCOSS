@@ -3,12 +3,20 @@
 MQTT 메시지 및 시스템 이벤트 로그를 저장합니다.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+
+# 한국 시간대 (KST = UTC+9)
+KST = timezone(timedelta(hours=9))
+
+
+def get_kst_now():
+    """KST 시간을 timezone-naive로 반환"""
+    return datetime.now(KST).replace(tzinfo=None)
 
 
 class SystemLog(Base):
@@ -17,7 +25,7 @@ class SystemLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False, comment="로그 시각"
+        DateTime, default=get_kst_now, nullable=False, comment="로그 시각 (KST)"
     )
     type: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="로그 타입 (CONNECTION, MESSAGE, ERROR, SYSTEM)"
