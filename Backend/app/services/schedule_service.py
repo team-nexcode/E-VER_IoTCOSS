@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db_session
 from app.models.schedule import Schedule
 from app.models.device_switch import DeviceSwitch
+from app.models.system_log import SystemLog
 from app.services.mobius_service import MobiusService
 
 logger = logging.getLogger(__name__)
@@ -38,13 +39,13 @@ class ScheduleService:
         
         self.is_running = True
         logger.info("=" * 50)
-        logger.info("스케줄 서비스 시작 - 30초마다 스케줄 체크")
+        logger.info("스케줄 서비스 시작 - 매 분마다 스케줄 체크")
         logger.info("=" * 50)
         
         while self.is_running:
             try:
                 await self._check_schedules()
-                await asyncio.sleep(30)  # 30초마다 체크
+                await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
                 await asyncio.sleep(30)
@@ -63,6 +64,18 @@ class ScheduleService:
         
         # 같은 분에 중복 실행 방지
         if current_minute == self.last_checked_minute:
+            # 30초마다 체크 시도는 하지만 같은 분은 스킵
+            async with get_db_session() as db:
+                skip_log = SystemLog(
+                    type="SYSTEM",
+                    level="info",
+                    source="Schedule",
+                    message=f"30초 체크: {now.strftime('%H:%M:%S')} (같은 분이라 스킵)",
+                    detail=None,
+                    timestamp=now
+                )
+                db.add(skip_log)
+                await db.commit()
             return
         
         self.last_checked_minute = current_minute
@@ -78,6 +91,18 @@ class ScheduleService:
             
             logger.info(f"[스케줄 체크] 활성 스케줄 {len(schedules)}개 발견")
             
+            # System Log에 체크 기록
+            check_log = SystemLog(
+                type="SYSTEM",
+                level="info",
+                source="Schedule",
+                message=f"스케줄 체크: {now.strftime('%H:%M:%S')} | 활성 스케줄 {len(schedules)}개",
+                detail=None,
+                timestamp=now
+            )
+            db.add(check_log)
+            await db.commit()
+            
             for schedule in schedules:
                 # 요일 확인
                 days = [int(d.strip()) for d in schedule.days_of_week.split(',')]
@@ -89,26 +114,75 @@ class ScheduleService:
                 
                 # 시간을 time 객체로 변환
                 if isinstance(schedule.start_time, dt_time):
+                    start_time_original = schedule.start_time
                     start_time = schedule.start_time.replace(second=0, microsecond=0)
                 else:
-                    start_time = dt_time.fromisoformat(str(schedule.start_time)).replace(second=0, microsecond=0)
+                    start_time_original = dt_time.fromisoformat(str(schedule.start_time))
+                    start_time = start_time_original.replace(second=0, microsecond=0)
                 
                 if isinstance(schedule.end_time, dt_time):
+                    end_time_original = schedule.end_time
                     end_time = schedule.end_time.replace(second=0, microsecond=0)
                 else:
-                    end_time = dt_time.fromisoformat(str(schedule.end_time)).replace(second=0, microsecond=0)
+                    end_time_original = dt_time.fromisoformat(str(schedule.end_time))
+                    end_time = end_time_original.replace(second=0, microsecond=0)
                 
                 logger.info(f"[스케줄 비교] {schedule.schedule_name}")
                 logger.info(f"  - 현재: {current_time} / 시작: {start_time} / 종료: {end_time}")
                 
+                # System Log에 스케줄 비교 기록
+                import json
+                detail_info = {
+                    "schedule_name": schedule.schedule_name,
+                    "current": str(current_time),
+                    "start": str(start_time),
+                    "end": str(end_time),
+                    "start_original": str(start_time_original),
+                    "end_original": str(end_time_original)
+                }
+                comparison_log = SystemLog(
+                    type="SYSTEM",
+                    level="info",
+                    source="Schedule",
+                    message=f"비교: {schedule.schedule_name} | 현재={current_time} 시작={start_time} 종료={end_time}",
+                    detail=json.dumps(detail_info, ensure_ascii=False),
+                    timestamp=now
+                )
+                db.add(comparison_log)
+                await db.commit()
+                
                 # start_time이 00:00:00이 아닐 때만 체크 (ON 스케줄)
-                if start_time != dt_time(0, 0, 0) and current_time == start_time:
+                if start_time_original != dt_time(0, 0, 0) and current_time == start_time:
                     logger.info(f"스케줄 실행 (ON): {schedule.schedule_name} (MAC: {schedule.device_mac})")
+                    
+                    exec_log = SystemLog(
+                        type="SYSTEM",
+                        level="info",
+                        source="Schedule",
+                        message=f"✅ ON 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        detail=json.dumps({"mac": schedule.device_mac, "action": "on"}, ensure_ascii=False),
+                        timestamp=now
+                    )
+                    db.add(exec_log)
+                    await db.commit()
+                    
                     await self._execute_power_control(schedule.device_mac, "on", db)
                 
                 # end_time이 23:59:59가 아닐 때만 체크 (OFF 스케줄)
-                elif end_time != dt_time(23, 59, 59) and current_time == end_time:
+                elif end_time_original != dt_time(23, 59, 59) and current_time == end_time:
                     logger.info(f"스케줄 실행 (OFF): {schedule.schedule_name} (MAC: {schedule.device_mac})")
+                    
+                    exec_log = SystemLog(
+                        type="SYSTEM",
+                        level="info",
+                        source="Schedule",
+                        message=f"✅ OFF 실행: {schedule.schedule_name} ({schedule.device_mac})",
+                        detail=json.dumps({"mac": schedule.device_mac, "action": "off"}, ensure_ascii=False),
+                        timestamp=now
+                    )
+                    db.add(exec_log)
+                    await db.commit()
+                    
                     await self._execute_power_control(schedule.device_mac, "off", db)
     
     async def _execute_power_control(self, device_mac: str, power_state: str, db: AsyncSession):
