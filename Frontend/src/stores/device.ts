@@ -104,24 +104,6 @@ export const useDeviceStore = defineStore('device', () => {
     if (data.estimated_cost != null) estimatedCost.value = data.estimated_cost as number
   }
 
-  async function fetchDesiredStates() {
-    try {
-      const response = await fetch('/api/devices/power/status')
-      if (response.ok) {
-        const data = await response.json()
-        // device_switch 테이블의 desired_state로 토글 상태 업데이트
-        for (const statusItem of data.devices) {
-          const device = devices.value.find((d) => d.deviceMac === statusItem.device_mac)
-          if (device) {
-            device.desiredState = statusItem.desired_state === 'on'
-          }
-        }
-      }
-    } catch (error) {
-      console.error('제어 상태 조회 실패:', error)
-    }
-  }
-
   function updateDeviceSensor(data: Record<string, unknown>) {
     const mac = data.device_mac as string
     if (!mac) return
