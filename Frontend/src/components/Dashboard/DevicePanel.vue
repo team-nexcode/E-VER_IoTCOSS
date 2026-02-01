@@ -62,13 +62,10 @@ const { devices } = storeToRefs(store)
           </span>
         </div>
 
-        <!-- 센서 데이터 -->
-        <div class="space-y-1.5 mb-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <Zap class="w-3.5 h-3.5 text-yellow-400" />
-              <span class="text-[10px] text-gray-400">전력</span>
-            </div>
+        <!-- 전력 / 온도 / 습도 -->
+        <div class="flex items-center gap-4 mb-3 flex-wrap">
+          <div class="flex items-center gap-1.5">
+            <Zap class="w-3.5 h-3.5 text-yellow-400" />
             <span v-if="device.isOnline"
               :class="[
                 'text-xs font-semibold',
@@ -79,11 +76,8 @@ const { devices } = storeToRefs(store)
             </span>
             <span v-else class="text-xs font-semibold text-gray-600">--</span>
           </div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <Thermometer class="w-3.5 h-3.5 text-orange-400" />
-              <span class="text-[10px] text-gray-400">온도</span>
-            </div>
+          <div class="flex items-center gap-1.5">
+            <Thermometer class="w-3.5 h-3.5 text-orange-400" />
             <span v-if="device.isOnline"
               :class="[
                 'text-xs font-semibold',
@@ -94,11 +88,8 @@ const { devices } = storeToRefs(store)
             </span>
             <span v-else class="text-xs font-semibold text-gray-600">--</span>
           </div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <Droplets class="w-3.5 h-3.5 text-sky-400" />
-              <span class="text-[10px] text-gray-400">습도</span>
-            </div>
+          <div class="flex items-center gap-1.5">
+            <Droplets class="w-3.5 h-3.5 text-sky-400" />
             <span v-if="device.isOnline" class="text-xs font-semibold text-sky-400">
               {{ device.humidity.toFixed(1) }}%
             </span>
