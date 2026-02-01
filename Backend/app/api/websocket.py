@@ -19,6 +19,7 @@ from sqlalchemy import select, desc, func
 from app.database import async_session
 from app.models.device import Device
 from app.models.device_mac import DeviceMac
+from app.models.dashboard import Dashboard
 from app.config import get_settings
 
 settings = get_settings()
@@ -113,6 +114,65 @@ def invalidate_device_mac_cache() -> None:
     _device_mac_cache.clear()
 
 
+# ── 한전 주택용 전력(저압) 요금 계산 ──
+
+def calculate_kepco_bill(kwh: float, month: int) -> int:
+    """한전 주택용 전력(저압) 누진제 요금을 계산합니다.
+    2024.01.01 기준 요금표 적용.
+    - 하계(7~8월): 300/450kWh 구간 경계
+    - 기타계절: 200/400kWh 구간 경계
+    - 슈퍼유저: 동계(12~2월)/하계(7~8월) 1,000kWh 초과분 736.2원/kWh
+    """
+    if kwh <= 0:
+        return 0
+
+    is_summer = month in (7, 8)
+    is_winter = month in (12, 1, 2)
+
+    if is_summer:
+        tier1_limit, tier2_limit = 300, 450
+    else:
+        tier1_limit, tier2_limit = 200, 400
+
+    # 기본요금 결정
+    if kwh <= tier1_limit:
+        base_fee = 910
+    elif kwh <= tier2_limit:
+        base_fee = 1600
+    else:
+        base_fee = 7300
+
+    # 전력량 요금 (누진제)
+    energy_fee = 0.0
+    remaining = kwh
+
+    # 구간 1
+    t1 = min(remaining, tier1_limit)
+    energy_fee += t1 * 120.0
+    remaining -= t1
+
+    # 구간 2
+    if remaining > 0:
+        t2_range = tier2_limit - tier1_limit
+        t2 = min(remaining, t2_range)
+        energy_fee += t2 * 214.6
+        remaining -= t2
+
+    # 구간 3
+    if remaining > 0:
+        super_threshold = 1000 - tier2_limit
+        if (is_summer or is_winter) and remaining > super_threshold:
+            # 구간 3 (tier2_limit ~ 1000kWh)
+            energy_fee += super_threshold * 307.3
+            remaining -= super_threshold
+            # 슈퍼유저 (1000kWh 초과분)
+            energy_fee += remaining * 736.2
+        else:
+            energy_fee += remaining * 307.3
+
+    return round(base_fee + energy_fee)
+
+
 # ── 전력량 계산 ──
 
 async def calculate_energy_kwh(from_date: date, to_date: date | None = None) -> float:
@@ -166,40 +226,54 @@ async def calculate_energy_kwh(from_date: date, to_date: date | None = None) -> 
 
 
 async def get_power_summary() -> dict:
-    """이번 달 / 어제 / 오늘 전력량(kWh)을 반환합니다.
-    서버 시간 기준 일자(DATE)로 오늘/어제를 구분합니다."""
+    """이번 달 / 어제 / 오늘 전력량(kWh)과 예상 전기요금을 반환합니다.
+    서버 시간 기준 일자(DATE)로 오늘/어제를 구분합니다.
+    이번달 누적 전력량과 요금은 dashboard 테이블에서 조회합니다."""
     today = datetime.now(KST).date()
     yesterday = today - timedelta(days=1)
-    month_start = today.replace(day=1)
 
     today_kwh = get_today_energy_kwh()
-    monthly_energy, yesterday_energy = await asyncio.gather(
-        calculate_energy_kwh(month_start, today),
-        calculate_energy_kwh(yesterday),
-    )
+    yesterday_energy = await calculate_energy_kwh(yesterday)
+
+    # dashboard 테이블에서 이번달 데이터 조회
+    monthly_energy = get_monthly_energy_kwh()
+    estimated_cost = get_monthly_bill()
 
     return {
         "monthly_energy_kwh": round(monthly_energy, 4),
         "yesterday_energy_kwh": round(yesterday_energy, 4),
         "today_energy_kwh": round(today_kwh, 4),
+        "estimated_cost": estimated_cost,
     }
 
 
-# ── 오늘 전력량 실시간 누적기 ──
+# ── 전력량 실시간 누적기 (오늘 + 월간) ──
 
 _today_energy_wh: float = 0.0
+_monthly_energy_wh: float = 0.0
+_monthly_bill: int = 0
 _today_date: object = None  # date
 _last_energy_readings: dict[str, tuple[float, datetime]] = {}
 
 
 async def init_energy_accumulator() -> None:
-    """서버 시작 시 오늘 전력량을 DB에서 계산하여 누적기를 초기화합니다.
+    """서버 시작 시 오늘/월간 전력량을 DB에서 계산하여 누적기를 초기화합니다.
     서버 시간 기준 오늘 일자(DATE)에 해당하는 레코드만 사용합니다."""
-    global _today_energy_wh, _today_date, _last_energy_readings
+    global _today_energy_wh, _monthly_energy_wh, _monthly_bill
+    global _today_date, _last_energy_readings
+
     today = datetime.now(KST).date()
     today_start = datetime.combine(today, datetime.min.time())
+    month_start = today.replace(day=1)
 
-    _today_energy_wh = (await calculate_energy_kwh(today)) * 1000
+    today_kwh, monthly_kwh = await asyncio.gather(
+        calculate_energy_kwh(today),
+        calculate_energy_kwh(month_start, today),
+    )
+
+    _today_energy_wh = today_kwh * 1000
+    _monthly_energy_wh = monthly_kwh * 1000
+    _monthly_bill = calculate_kepco_bill(monthly_kwh, today.month)
     _today_date = today
     _last_energy_readings = {}
 
@@ -220,15 +294,26 @@ async def init_energy_accumulator() -> None:
             if amp is not None and ts is not None:
                 _last_energy_readings[mac] = (amp, ts)
 
-    logger.info(f"전력량 누적기 초기화 완료: {_today_energy_wh:.1f} Wh")
+    # dashboard 테이블 업데이트
+    await upsert_dashboard(today.year, today.month, monthly_kwh, _monthly_bill)
+
+    logger.info(
+        f"전력량 누적기 초기화 완료: 오늘 {_today_energy_wh:.1f}Wh, "
+        f"월간 {_monthly_energy_wh:.1f}Wh, 예상요금 {_monthly_bill}원"
+    )
 
 
 def accumulate_energy(mac: str, energy_amp: float | None, timestamp: datetime | None) -> float:
-    """새 센서 데이터로 오늘 전력량을 증분 누적합니다. 현재 오늘 kWh를 반환합니다."""
-    global _today_energy_wh, _today_date, _last_energy_readings
+    """새 센서 데이터로 오늘/월간 전력량을 증분 누적합니다. 현재 오늘 kWh를 반환합니다."""
+    global _today_energy_wh, _monthly_energy_wh, _monthly_bill
+    global _today_date, _last_energy_readings
 
     today = datetime.now(KST).date()
     if _today_date != today:
+        # 날짜 변경 시 오늘 누적 리셋, 월 변경 시 월간도 리셋
+        if _today_date and today.month != _today_date.month:
+            _monthly_energy_wh = 0.0
+            _monthly_bill = 0
         _today_energy_wh = 0.0
         _today_date = today
         _last_energy_readings = {}
@@ -236,12 +321,17 @@ def accumulate_energy(mac: str, energy_amp: float | None, timestamp: datetime | 
     if energy_amp is None or timestamp is None:
         return _today_energy_wh / 1000
 
+    delta_wh = 0.0
     last = _last_energy_readings.get(mac)
     if last:
         last_amp, last_ts = last
         dt_hours = (timestamp - last_ts).total_seconds() / 3600
-        if 0 < dt_hours < 1:
-            _today_energy_wh += ((last_amp + energy_amp) / 2) * VOLTAGE * dt_hours
+        if 0 < dt_hours < 6:
+            delta_wh = ((last_amp + energy_amp) / 2) * VOLTAGE * dt_hours
+            _today_energy_wh += delta_wh
+            _monthly_energy_wh += delta_wh
+            # 월간 요금 재계산
+            _monthly_bill = calculate_kepco_bill(_monthly_energy_wh / 1000, today.month)
 
     _last_energy_readings[mac] = (energy_amp, timestamp)
     return _today_energy_wh / 1000
@@ -252,6 +342,51 @@ def get_today_energy_kwh() -> float:
     if _today_date != datetime.now(KST).date():
         return 0.0
     return _today_energy_wh / 1000
+
+
+def get_monthly_energy_kwh() -> float:
+    """현재 누적된 월간 전력량(kWh)을 반환합니다."""
+    return _monthly_energy_wh / 1000
+
+
+def get_monthly_bill() -> int:
+    """현재 예상 전기요금(원)을 반환합니다."""
+    return _monthly_bill
+
+
+# ── dashboard 테이블 업데이트 ──
+
+async def upsert_dashboard(year: int, month: int, energy_kwh: float, bill: int) -> None:
+    """dashboard 테이블에 월별 데이터를 저장/업데이트합니다."""
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(Dashboard).where(
+                    Dashboard.year == year, Dashboard.month == month
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.month_totalenergy = round(energy_kwh, 4)
+                row.month_energybill = bill
+            else:
+                session.add(Dashboard(
+                    year=year, month=month,
+                    month_totalenergy=round(energy_kwh, 4),
+                    month_energybill=bill,
+                ))
+            await session.commit()
+    except Exception as e:
+        logger.error(f"dashboard 테이블 업데이트 실패: {e}")
+
+
+async def update_dashboard_from_accumulator() -> None:
+    """현재 누적기 값으로 dashboard 테이블을 업데이트합니다."""
+    today = datetime.now(KST).date()
+    await upsert_dashboard(
+        today.year, today.month,
+        _monthly_energy_wh / 1000, _monthly_bill,
+    )
 
 
 async def get_all_device_status() -> list:

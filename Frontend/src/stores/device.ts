@@ -30,10 +30,11 @@ export const useDeviceStore = defineStore('device', () => {
   const dailyPowerTotal = ref<DailyPowerPoint[]>([])
   const dailyPowerByDevice = ref<Record<number, DailyPowerPoint[]>>({})
 
-  // 백엔드에서 전달받는 전력량 (kWh)
+  // 백엔드에서 전달받는 전력량 (kWh) 및 요금
   const monthlyEnergy = ref(0)
   const yesterdayEnergy = ref(0)
   const todayEnergy = ref(0)
+  const estimatedCost = ref(0)
 
   const powerSummary = computed<PowerSummary>(() => {
     const devs = devices.value
@@ -53,7 +54,7 @@ export const useDeviceStore = defineStore('device', () => {
       totalDevices: total,
       avgTemperature: avgTemp,
       savingsPercent: 0,
-      estimatedCost: 0,
+      estimatedCost: estimatedCost.value,
       peakPower: 0,
     }
   })
@@ -67,6 +68,7 @@ export const useDeviceStore = defineStore('device', () => {
       deviceMac: (d.device_mac as string) ?? '',
       location: (d.location as string) ?? '',
       isActive: (d.relay_status as string) === 'on',
+      desiredState: (d.relay_status as string) === 'on', // 초기값은 실제 상태와 동일
       currentPower: (d.energy_amp as number) ?? 0,
       temperature: (d.temperature as number) ?? 0,
       humidity: (d.humidity as number) ?? 0,
@@ -99,6 +101,7 @@ export const useDeviceStore = defineStore('device', () => {
     if (data.monthly_energy_kwh != null) monthlyEnergy.value = data.monthly_energy_kwh as number
     if (data.yesterday_energy_kwh != null) yesterdayEnergy.value = data.yesterday_energy_kwh as number
     if (data.today_energy_kwh != null) todayEnergy.value = data.today_energy_kwh as number
+    if (data.estimated_cost != null) estimatedCost.value = data.estimated_cost as number
   }
 
   function updateDeviceSensor(data: Record<string, unknown>) {
@@ -138,13 +141,10 @@ export const useDeviceStore = defineStore('device', () => {
     const device = devices.value.find((d) => d.deviceMac === deviceMac)
     if (!device) return
 
-    const newState = device.isActive ? 'off' : 'on'
+    const newState = !device.desiredState
+    const newStateStr = newState ? 'on' : 'off'
 
     try {
-      // 낙관적 업데이트 (즉시 UI 반영)
-      device.isActive = !device.isActive
-
-      // Backend API 호출 (Vite proxy를 통해 자동으로 백엔드 서버로 전달됨)
       const response = await fetch('/api/devices/power/control', {
         method: 'POST',
         headers: {
@@ -152,21 +152,37 @@ export const useDeviceStore = defineStore('device', () => {
         },
         body: JSON.stringify({
           mac_address: deviceMac,
-          power_state: newState,
+          power_state: newStateStr,
         }),
       })
 
       if (!response.ok) {
-        // 실패 시 원래 상태로 복구
-        device.isActive = !device.isActive
-        console.error('전원 제어 실패:', await response.text())
-        alert('전원 제어에 실패했습니다.')
+        const errorText = await response.text()
+        alert(`전원 제어에 실패했습니다.\n상태: ${response.status}\n에러: ${errorText}`)
+      } else {
+        // 성공 시 DB에서 최신 desired_state 가져오기
+        await fetchDesiredStates()
       }
     } catch (error) {
-      // 에러 시 원래 상태로 복구
-      device.isActive = !device.isActive
-      console.error('전원 제어 오류:', error)
-      alert('전원 제어 중 오류가 발생했습니다.')
+      alert(`전원 제어 중 오류가 발생했습니다.\n${error}`)
+    }
+  }
+
+  async function fetchDesiredStates() {
+    try {
+      const response = await fetch('/api/devices/power/status')
+      if (response.ok) {
+        const data = await response.json()
+        // device_switch 테이블의 desired_state로 토글 상태 업데이트
+        for (const statusItem of data.devices) {
+          const device = devices.value.find((d) => d.deviceMac === statusItem.device_mac)
+          if (device) {
+            device.desiredState = statusItem.desired_state === 'on'
+          }
+        }
+      }
+    } catch (error) {
+      console.error('제어 상태 조회 실패:', error)
     }
   }
 
@@ -179,6 +195,7 @@ export const useDeviceStore = defineStore('device', () => {
     dailyPowerByDevice,
     setDevices,
     setPowerSummary,
+    fetchDesiredStates,
     updateDeviceSensor,
     selectDevice,
     updatePosition,

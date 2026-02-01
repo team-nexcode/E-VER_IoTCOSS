@@ -42,20 +42,20 @@ class MobiusService:
     def _build_headers(self, operation: str = "retrieve") -> dict[str, str]:
         """
         공통 헤더 생성
-        - 생성(create): X-M2M-Origin = SOrigin
-        - 조회/수정/삭제: X-M2M-Origin = S
+        - 생성(create): X-M2M-Origin = SOrigin_nexcode
+        - 조회/수정/삭제: X-M2M-Origin = SOrigin_nexcode
         """
-        origin = "SOrigin" if operation == "create" else "S"
+        origin = "SOrigin_nexcode"  # MQTT 토픽과 동일한 Origin 사용
         headers = {
             "Accept": "application/json",
-            "X-M2M-RI": "req_id",
+            "X-M2M-RI": "12345",
             "X-M2M-Origin": origin,
             "X-API-KEY": settings.X_API_KEY,
             "X-AUTH-CUSTOM-LECTURE": settings.X_AUTH_CUSTOM_LECTURE,
             "X-AUTH-CUSTOM-CREATOR": settings.X_AUTH_CUSTOM_CREATOR,
         }
         if operation == "create":
-            headers["Content-Type"] = "application/json;ty=2"
+            headers["Content-Type"] = "application/json;ty=4"  # ty=4: ContentInstance
         else:
             headers["Content-Type"] = "application/json"
         return headers
