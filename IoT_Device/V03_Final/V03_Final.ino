@@ -27,7 +27,7 @@ const String origin = "SOrigin_nexcode";
 // ----------------------------------------------------------------
 DHT11 dht(A1);
 const int sensorIn = A0;
-const int relay = 3;
+const int relay = 2;
 
 WiFiSSLClient client;
 
