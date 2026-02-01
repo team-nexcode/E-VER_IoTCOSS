@@ -55,6 +55,7 @@ export const useDeviceStore = defineStore('device', () => {
 
   function setDevices(rawList: Record<string, unknown>[]) {
     const now = new Date().toISOString()
+
     devices.value = rawList.map((d) => ({
       id: d.id as number,
       name: (d.device_name as string) ?? '',
@@ -103,7 +104,7 @@ export const useDeviceStore = defineStore('device', () => {
         device.isActive = (data.relay_status as string) === 'on'
       }
       if (data.timestamp) device.updatedAt = data.timestamp as string
-      device.isOnline = true
+      if (data.is_online !== undefined) device.isOnline = data.is_online as boolean
     }
   }
 

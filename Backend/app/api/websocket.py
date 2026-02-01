@@ -5,6 +5,8 @@ WebSocket 엔드포인트
 
 import asyncio
 import json
+import logging
+import time
 from typing import List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -16,6 +18,9 @@ from app.models.device_mac import DeviceMac
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+OFFLINE_THRESHOLD = 30  # 초
 router = APIRouter(tags=["WebSocket"])
 
 
@@ -64,6 +69,22 @@ manager = ConnectionManager()
 
 # device_mac 캐시 (MAC → {device_name, location})
 _device_mac_cache: dict[str, dict] = {}
+
+# 디바이스 마지막 수신 시각 (MAC → time.time())
+_device_last_seen: dict[str, float] = {}
+
+
+def update_device_last_seen(mac: str) -> None:
+    """MQTT 센서 데이터 수신 시 마지막 수신 시각을 갱신합니다."""
+    _device_last_seen[mac] = time.time()
+
+
+def is_device_online(mac: str) -> bool:
+    """마지막 수신으로부터 OFFLINE_THRESHOLD 이내면 온라인으로 판정합니다."""
+    last = _device_last_seen.get(mac)
+    if last is None:
+        return False
+    return (time.time() - last) <= OFFLINE_THRESHOLD
 
 
 async def get_cached_device_mac(mac_addr: str) -> dict | None:
@@ -128,7 +149,7 @@ async def get_all_device_status() -> list:
                 "humidity": latest.humidity if latest else None,
                 "energy_amp": latest.energy_amp if latest else None,
                 "relay_status": latest.relay_status if latest else None,
-                "is_online": latest is not None,
+                "is_online": is_device_online(mac.device_mac),
                 "timestamp": str(latest.timestamp) if latest and latest.timestamp else None,
             })
 
@@ -163,6 +184,44 @@ async def broadcast_system_log(message: str, detail: str | None = None, level: s
 async def broadcast_device_update(data: dict) -> None:
     """디바이스 센서 데이터 업데이트를 모든 WebSocket 클라이언트에 실시간 전달합니다."""
     await manager.broadcast({"type": "device_update", "data": data})
+
+
+# ── 오프라인 감지 백그라운드 태스크 ──
+
+_previously_online: set[str] = set()
+
+
+async def _offline_checker_loop() -> None:
+    """5초마다 오프라인 전환된 디바이스를 감지하여 클라이언트에 브로드캐스트합니다."""
+    global _previously_online
+    while True:
+        await asyncio.sleep(5)
+        try:
+            now = time.time()
+            currently_online: set[str] = set()
+            for mac, last in _device_last_seen.items():
+                if now - last <= OFFLINE_THRESHOLD:
+                    currently_online.add(mac)
+
+            newly_offline = _previously_online - currently_online
+            for mac in newly_offline:
+                mac_info = _device_mac_cache.get(mac)
+                await broadcast_device_update({
+                    "device_mac": mac,
+                    "device_name": mac_info["device_name"] if mac_info else "",
+                    "location": mac_info["location"] if mac_info else "",
+                    "is_online": False,
+                })
+                logger.info(f"디바이스 오프라인 전환: {mac}")
+
+            _previously_online = currently_online
+        except Exception as e:
+            logger.error(f"오프라인 체커 오류: {e}")
+
+
+def start_offline_checker() -> asyncio.Task:
+    """오프라인 감지 백그라운드 태스크를 시작합니다."""
+    return asyncio.create_task(_offline_checker_loop())
 
 
 @router.websocket("/ws/devices")

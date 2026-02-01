@@ -19,7 +19,7 @@ from app.database import engine, Base
 from app.api.devices import router as devices_router
 from app.api.power import router as power_router
 from app.api.auth import router as auth_router
-from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac
+from app.api.websocket import router as websocket_router, broadcast_mqtt_message, broadcast_system_log, broadcast_device_update, get_cached_device_mac, update_device_last_seen, start_offline_checker
 from app.api.mobius import router as mobius_router
 from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
@@ -61,6 +61,9 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("데이터베이스 테이블 초기화 완료")
+
+    # 오프라인 감지 백그라운드 태스크 시작
+    offline_checker_task = start_offline_checker()
 
     # MQTT 브로커 연결 시도
     mqtt_listen_task = None
@@ -114,6 +117,8 @@ async def lifespan(app: FastAPI):
                     if mac_addr:
                         mac_info = await get_cached_device_mac(mac_addr)
                         if mac_info:
+                            update_device_last_seen(mac_addr)
+
                             con = cin.get("con", {})
                             if isinstance(con, str):
                                 try:
@@ -130,6 +135,7 @@ async def lifespan(app: FastAPI):
                                 "energy_amp": float(con["energy"]) if "energy" in con else None,
                                 "relay_status": str(con["status"]) if "status" in con else None,
                                 "timestamp": str(parsed_ts) if parsed_ts else None,
+                                "is_online": True,
                             }
 
                 # ── FAST PATH: 대시보드 업데이트를 최우선 브로드캐스트 ──
@@ -214,6 +220,7 @@ async def lifespan(app: FastAPI):
 
     if mqtt_listen_task:
         mqtt_listen_task.cancel()
+    offline_checker_task.cancel()
 
     # === 앱 종료 시 ===
     logger.info("IoTCOSS 백엔드 서버를 종료합니다...")
