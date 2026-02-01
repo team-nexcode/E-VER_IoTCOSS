@@ -50,66 +50,64 @@ const markAllAsRead = () => {
 </script>
 
 <template>
-  <div class="space-y-6 p-6">
-    <div class="flex justify-between items-end">
+  <div class="space-y-8 p-8"> <div class="flex justify-between items-end">
       <div>
-        <h2 class="text-2xl font-bold text-white">알림 센터</h2>
-        <p class="text-sm text-gray-500 mt-1">시스템에서 발생한 중요한 소식을 확인하세요</p>
-      </div>
+        <h2 class="text-3xl font-bold text-white">알림 센터</h2> <p class="text-base text-gray-500 mt-2">시스템에서 발생한 중요한 소식을 확인하세요</p> </div>
       <button 
         @click="markAllAsRead"
-        class="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+        class="text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium"
       >
         모두 읽음으로 표시
       </button>
     </div>
 
-    <div v-if="notifications.length > 0" class="space-y-3">
+    <div v-if="notifications.length > 0" class="space-y-4">
       <div 
         v-for="n in notifications" 
         :key="n.id"
-        class="group relative border rounded-xl p-4 transition-all"
+        class="group relative border rounded-2xl p-6 transition-all" 
         :style="{
           backgroundColor: n.isRead ? '#111827' : '#1f2937',
           borderColor: n.isRead ? '#1f2937' : '#374151',
           opacity: n.isRead ? 0.7 : 1
         }"
       >
-        <div class="flex items-center gap-4"> <div class="flex-shrink-0 flex items-center justify-center">
-    <AlertTriangle v-if="n.type === 'danger'" class="w-5 h-5 text-red-500" />
-    <AlertTriangle v-else-if="n.type === 'warning'" class="w-5 h-5 text-orange-500" />
-    <CheckCircle2 v-else-if="n.type === 'success'" class="w-5 h-5 text-emerald-500" />
-    <Info v-else class="w-5 h-5 text-blue-500" />
-  </div>
+        <div class="flex items-center gap-6"> 
+          <div class="flex-shrink-0 flex items-center justify-center">
+            <AlertTriangle v-if="n.type === 'danger'" class="w-7 h-7 text-red-500" />
+            <AlertTriangle v-else-if="n.type === 'warning'" class="w-7 h-7 text-orange-500" />
+            <CheckCircle2 v-else-if="n.type === 'success'" class="w-7 h-7 text-emerald-500" />
+            <Info v-else class="w-7 h-7 text-blue-500" />
+          </div>
 
-  <div class="flex-1">
-    <div class="flex justify-between items-center">
-      <h4 class="font-bold text-sm" :class="n.isRead ? 'text-gray-400' : 'text-white'">
-        {{ n.title }}
-        <span v-if="!n.isRead" class="ml-2 inline-block w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-      </h4>
-      <span class="text-xs text-gray-500">{{ n.time }}</span>
+          <div class="flex-1">
+            <div class="flex justify-between items-center">
+              <h4 class="font-bold text-lg" :class="n.isRead ? 'text-gray-400' : 'text-white'">
+                {{ n.title }}
+                <span v-if="!n.isRead" class="ml-2 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
+              </h4>
+              <span class="text-sm text-gray-500">{{ n.time }}</span>
+            </div>
+            <p class="text-base mt-1.5 leading-relaxed" :class="n.isRead ? 'text-gray-500' : 'text-gray-400'">
+              {{ n.message }}
+            </p>
+          </div>
+
+          <div class="flex items-center">
+            <button 
+              @click="deleteNotification(n.id)"
+              class="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-400 transition-all"
+            >
+              <Trash2 class="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-    <p class="text-sm mt-0.5 leading-relaxed" :class="n.isRead ? 'text-gray-500' : 'text-gray-400'">
-      {{ n.message }}
-    </p>
-  </div>
 
-  <div class="flex items-center">
-    <button 
-      @click="deleteNotification(n.id)"
-      class="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-400 transition-all"
-    >
-      <Trash2 class="w-4 h-4" />
-    </button>
-  </div>
-</div>
-</div>
-</div>
-
-    <div v-else class="flex flex-col items-center justify-center h-64 bg-gray-900/30 border border-dashed border-gray-800 rounded-2xl">
-      <Bell class="w-12 h-12 text-gray-700 mb-3" />
-      <p class="text-gray-500">새로운 알림이 없습니다.</p>
+    <div v-else class="flex flex-col items-center justify-center h-80 bg-gray-900/30 border border-dashed border-gray-800 rounded-3xl">
+      <Bell class="w-16 h-16 text-gray-700 mb-4" />
+      <p class="text-lg text-gray-500">새로운 알림이 없습니다.</p>
     </div>
   </div>
 </template>
