@@ -184,12 +184,6 @@ class ScheduleService:
                     await db.commit()
                     
                     await self._execute_power_control(schedule.device_mac, "off", db)
-                        created_at=now
-                    )
-                    db.add(exec_log)
-                    await db.commit()
-                    
-                    await self._execute_power_control(schedule.device_mac, "off", db)
     
     async def _execute_power_control(self, device_mac: str, power_state: str, db: AsyncSession):
         """전원 제어 실행"""
