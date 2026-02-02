@@ -199,7 +199,7 @@ async function confirmModal() {
     start_time: action.value === 'on' ? timeStr : '00:00:00',
     end_time: action.value === 'off' ? timeStr : '23:59:59',
     schedule_name: `${selectedDevice.device_name} ${action.value.toUpperCase()} at ${hh}:${mm}`,
-    days_of_week: [0, 1, 2, 3, 4, 5, 6], // 매일 실행
+    days_of_week: '0,1,2,3,4,5,6', // 매일 실행
   }
 
   await scheduleStore.createSchedule(scheduleData)
