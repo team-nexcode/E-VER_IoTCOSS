@@ -55,7 +55,7 @@ export const useDeviceStore = defineStore('device', () => {
       avgTemperature: avgTemp,
       savingsPercent: 0,
       estimatedCost: estimatedCost.value,
-      peakPower: Math.round(totalPower * 220),
+      peakPower: totalPower * 220,
     }
   })
 

@@ -119,7 +119,7 @@ watch(selectedDeviceId, (newId) => {
       <div class="flex-1 min-w-0">
         <StatusCard
           title="실시간 소비전력"
-          :value="powerSummary.peakPower.toLocaleString()"
+          :value="powerSummary.peakPower.toFixed(2)"
           unit="W"
           color="red"
         >
