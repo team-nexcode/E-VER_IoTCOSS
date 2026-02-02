@@ -172,13 +172,18 @@ def kill_port_if_needed(host: str, port: int) -> None:
 # -----------------------
 def load_env() -> Path | None:
     here = Path(__file__).resolve().parent
-    candidates = [here / ".env"]
+    # Backend/app/ai -> Backend/app -> Backend 순으로 .env 탐색
+    candidates = [
+        here / ".env",  # Backend/app/ai/.env
+        here.parent / ".env",  # Backend/app/.env
+        here.parent.parent / ".env",  # Backend/.env
+    ]
     for p in candidates:
         if p.exists():
             load_dotenv(dotenv_path=p, override=False)
             logger.info(f"✅ .env loaded from: {p}")
             return p
-    logger.warning("⚠️ .env not found in this folder.")
+    logger.warning("⚠️ .env not found in any candidate path.")
     return None
 
 
