@@ -113,7 +113,7 @@ function getChartX(hour: number): number {
 
 function getChartY(value: number): number {
   const max = maxUsage.value * 1.1 // 최댓값에 10% 여유 공간
-  return 95 - (value / max) * 90 // 값을 5%~95% 범위로 매핑
+  return 98 - (value / max) * 96 // 값을 2%~98% 범위로 매핑 (더 넓은 범위)
 }
 </script>
 
@@ -174,9 +174,9 @@ function getChartY(value: number): number {
             
             <!-- 배경 영역 -->
             <path
-              :d="`M ${getChartX(parseInt(hourlyUsage[0].hour))},95 ` +
+              :d="`M ${getChartX(parseInt(hourlyUsage[0].hour))},98 ` +
                   hourlyUsage.map(item => `L ${getChartX(parseInt(item.hour))},${getChartY(item.value)}`).join(' ') +
-                  ` L ${getChartX(parseInt(hourlyUsage[hourlyUsage.length - 1].hour))},95 Z`"
+                  ` L ${getChartX(parseInt(hourlyUsage[hourlyUsage.length - 1].hour))},98 Z`"
               fill="url(#areaGradient)"
             />
             
