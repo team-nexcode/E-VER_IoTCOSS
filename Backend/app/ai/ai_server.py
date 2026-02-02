@@ -494,7 +494,7 @@ async def get_state(device_mac: str):
 async def get_anomalies(
     device_mac: str,
     hours: int = Query(24, ge=1, le=168),
-    z_thr: float = Query(6.0, ge=2.0, le=20.0),
+    z_thr: float = Query(3.0, ge=2.0, le=20.0),
 ):
     logger.debug(f"[API] /devices/{device_mac}/anomalies hours={hours} z_thr={z_thr}")
     df = await fetch_window(device_mac, hours=hours)
@@ -537,7 +537,7 @@ async def get_report(
 ):
     logger.debug(f"[API] /devices/{device_mac}/report hours={hours} voltage={voltage}")
     state_now = await get_state(device_mac)
-    anomalies = await get_anomalies(device_mac, hours=hours, z_thr=6.0)
+    anomalies = await get_anomalies(device_mac, hours=hours, z_thr=3.0)
     waste = await get_waste(device_mac, hours=hours, voltage=voltage)
 
     summary = (
