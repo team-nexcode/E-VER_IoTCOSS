@@ -105,78 +105,6 @@ async function fetchAIReport() {
 onMounted(() => {
   fetchAIReport()
 })
-
-const standbyHigh = computed(() => report.value.total_standby_wh >= 50)
-const anomaliesHigh = computed(() => report.value.total_anomaly_count >= 3)
-const isRisky = computed(() => standbyHigh.value || anomaliesHigh.value)
-
-const statusBadge = computed(() => {
-  return isRisky.value
-    ? { text: '주의', cls: 'bg-amber-500/10 text-amber-200 border-amber-500/20' }
-    : { text: '정상', cls: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20' }
-})
-
-// ✅ OpenAI 구조화된 분석 우선, 없으면 기본 로직
-const summary = computed(() => {
-  // OpenAI 구조화된 분석이 있으면 summary 사용
-  if (report.value.openai_analysis?.summary) {
-    return report.value.openai_analysis.summary
-  }
-  
-  // 없으면 기본 로직으로 생성
-  const hours = report.value.hours
-  const standby = report.value.total_standby_wh
-  const anomalies = report.value.total_anomaly_count
-  const devices = report.value.device_count
-
-  let s =
-    `최근 ${hours}시간 기준 ${devices}개 기기에서 standby 추정 ${standby.toFixed(2)}Wh, ` +
-    `이상치 ${anomalies}건 감지되었습니다.`
-
-  if (standby >= 50) s += ' 대기전력 낭비가 큰 편이라 미사용 시 차단을 권장합니다.'
-  if (anomalies >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검을 권장합니다.'
-  return s
-})
-
-const recommendations = computed(() => {
-  const list: { tone: 'warn' | 'ok'; title: string; desc: string }[] = []
-
-  if (standbyHigh.value) {
-    list.push({
-      tone: 'warn',
-      title: '미사용 시간대 차단 권장',
-      desc: 'Standby 누적이 커서 스케줄/타이머 기반 차단을 추천합니다.',
-    })
-  } else {
-    list.push({
-      tone: 'ok',
-      title: 'Standby 상태 양호',
-      desc: '대기전력 수준이 안정적입니다.',
-    })
-  }
-
-  if (anomaliesHigh.value) {
-    list.push({
-      tone: 'warn',
-      title: '이상치 원인 점검 필요',
-      desc: '센서 값 튐/부하 변동/릴레이 접점 상태를 우선 확인해 주세요.',
-    })
-  } else if (report.value.total_anomaly_count > 0) {
-    list.push({
-      tone: 'ok',
-      title: '이상치 소량(관찰)',
-      desc: '즉시 조치보다는 추세 관찰을 권장합니다.',
-    })
-  } else {
-    list.push({
-      tone: 'ok',
-      title: '이상치 없음',
-      desc: '측정값이 안정적입니다.',
-    })
-  }
-
-  return list
-})
 </script>
 
 <template>
@@ -257,42 +185,21 @@ const recommendations = computed(() => {
               최근 <span class="text-gray-200 font-semibold">{{ report.hours }}</span>시간 기준 {{ report.device_count }}개 기기 종합 분석
             </p>
           </div>
-
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <span class="text-xs px-2.5 py-1 rounded-full border" :class="statusBadge.cls">
-              {{ statusBadge.text }}
-            </span>
-          </div>
         </div>
 
         <!-- 핵심 포인트 칩 -->
         <div class="mt-4 flex flex-wrap gap-2">
-          <span
-            class="text-[11px] px-2.5 py-1 rounded-full border"
-            :class="standbyHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
-          >
-            standby {{ report.total_standby_wh.toFixed(2) }}Wh (기준 50Wh)
+          <span class="text-[11px] px-2.5 py-1 rounded-full border bg-gray-500/10 text-gray-200 border-gray-500/20">
+            standby {{ report.total_standby_wh.toFixed(2) }}Wh
           </span>
-          <span
-            class="text-[11px] px-2.5 py-1 rounded-full border"
-            :class="anomaliesHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
-          >
-            이상치 {{ report.total_anomaly_count }}건 (기준 3건)
-          </span>
-          <span
-            v-if="!isRisky"
-            class="text-[11px] px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-200 border-emerald-500/20"
-          >
-            특이사항 없음
+          <span class="text-[11px] px-2.5 py-1 rounded-full border bg-gray-500/10 text-gray-200 border-gray-500/20">
+            이상치 {{ report.total_anomaly_count }}건
           </span>
         </div>
 
         <!-- 숫자 타일 (한눈에) -->
         <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div
-            class="rounded-2xl border bg-gray-900/35 px-4 py-4"
-            :class="standbyHigh ? 'border-amber-500/25' : 'border-gray-800'"
-          >
+          <div class="rounded-2xl border border-gray-800 bg-gray-900/35 px-4 py-4">
             <div class="text-[11px] text-gray-400 flex items-center gap-2">
               <Activity class="w-4 h-4 text-sky-300" />
               standby 추정
@@ -301,13 +208,9 @@ const recommendations = computed(() => {
               {{ report.total_standby_wh.toFixed(2) }}
               <span class="text-xs font-medium text-gray-400 ml-1">Wh</span>
             </div>
-            <div class="mt-1 text-[11px] text-gray-500">임계 50Wh 이상 주의</div>
           </div>
 
-          <div
-            class="rounded-2xl border bg-gray-900/35 px-4 py-4"
-            :class="anomaliesHigh ? 'border-amber-500/25' : 'border-gray-800'"
-          >
+          <div class="rounded-2xl border border-gray-800 bg-gray-900/35 px-4 py-4">
             <div class="text-[11px] text-gray-400 flex items-center gap-2">
               <AlertTriangle class="w-4 h-4 text-amber-300" />
               이상치
@@ -316,7 +219,6 @@ const recommendations = computed(() => {
               {{ report.total_anomaly_count }}
               <span class="text-xs font-medium text-gray-400 ml-1">건</span>
             </div>
-            <div class="mt-1 text-[11px] text-gray-500">임계 3건 이상 점검 권장</div>
           </div>
 
           <div class="rounded-2xl border border-gray-800 bg-gray-900/35 px-4 py-4">
@@ -328,50 +230,37 @@ const recommendations = computed(() => {
               {{ report.hours }}
               <span class="text-xs font-medium text-gray-400 ml-1">시간</span>
             </div>
-            <div class="mt-1 text-[11px] text-gray-500">최근 데이터 기반</div>
           </div>
         </div>
 
         <!-- AI 코멘트 (긴 문장은 여기에 모아 가독성 확보) -->
-        <div
-          class="mt-4 rounded-2xl border p-4"
-          :class="isRisky ? 'border-amber-500/20 bg-amber-500/10' : 'border-gray-800 bg-gray-900/30'"
-        >
+        <div class="mt-4 rounded-2xl border border-gray-800 bg-gray-900/30 p-4">
           <div class="flex items-start gap-3">
-            <div
-              class="w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0"
-              :class="isRisky ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'"
-            >
-              <AlertTriangle v-if="isRisky" class="w-4 h-4 text-amber-300" />
-              <CheckCircle2 v-else class="w-4 h-4 text-emerald-300" />
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center border bg-purple-500/10 border-purple-500/20 flex-shrink-0">
+              <Sparkles class="w-4 h-4 text-purple-300" />
             </div>
 
             <div class="min-w-0">
               <div class="text-sm font-semibold text-white">AI 코멘트</div>
               <p class="text-sm text-gray-200 mt-1 leading-relaxed break-words">
-                {{ summary }}
+                {{ report.openai_analysis?.summary || '분석 데이터를 불러오는 중입니다...' }}
               </p>
             </div>
           </div>
         </div>
 
-        <!-- 권장 조치 (짧게, 읽기 쉽게) -->
-        <div class="mt-4">
-          <div class="text-xs text-gray-400">권장 조치</div>
-          <div class="mt-2 space-y-2">
+        <!-- 권장사항 (OpenAI 분석) -->
+        <div v-if="report.openai_analysis?.recommendations?.length" class="mt-4">
+          <div class="text-xs text-gray-400 mb-2">AI 권장사항</div>
+          <div class="space-y-2">
             <div
-              v-for="(it, idx) in recommendations"
+              v-for="(rec, idx) in report.openai_analysis.recommendations"
               :key="idx"
-              class="rounded-2xl border px-4 py-3"
-              :class="it.tone === 'warn' ? 'border-amber-500/25 bg-amber-500/10' : 'border-emerald-500/25 bg-emerald-500/10'"
+              class="rounded-2xl border border-purple-500/25 bg-purple-500/10 px-4 py-3"
             >
               <div class="flex items-start gap-3">
-                <AlertTriangle v-if="it.tone === 'warn'" class="w-4 h-4 mt-0.5 text-amber-300 flex-shrink-0" />
-                <CheckCircle2 v-else class="w-4 h-4 mt-0.5 text-emerald-300 flex-shrink-0" />
-                <div class="min-w-0">
-                  <div class="text-sm font-semibold text-white">{{ it.title }}</div>
-                  <div class="text-sm text-gray-200 mt-0.5 leading-relaxed">{{ it.desc }}</div>
-                </div>
+                <CheckCircle2 class="w-4 h-4 mt-0.5 text-purple-300 flex-shrink-0" />
+                <p class="text-sm text-gray-200 leading-relaxed">{{ rec }}</p>
               </div>
             </div>
           </div>
