@@ -107,16 +107,16 @@ onMounted(() => {
 const linePath = computed(() => {
   if (hourlyUsage.value.length === 0) return ''
   
-  const width = 100 // 100% 기준
-  const height = 100 // 100% 기준
-  const padding = 5
+  const width = 100
+  const height = 100
+  const padding = 10
   
   const max = maxUsage.value
-  const step = (width - padding * 2) / (hourlyUsage.value.length - 1)
+  const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
     const x = padding + idx * step
-    const y = height - padding - ((item.value / max) * (height - padding * 2))
+    const y = padding + (height - padding * 2) * (1 - item.value / max)
     return `${x},${y}`
   })
   
@@ -129,22 +129,26 @@ const areaPath = computed(() => {
   
   const width = 100
   const height = 100
-  const padding = 5
+  const padding = 10
   
   const max = maxUsage.value
-  const step = (width - padding * 2) / (hourlyUsage.value.length - 1)
+  const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
     const x = padding + idx * step
-    const y = height - padding - ((item.value / max) * (height - padding * 2))
+    const y = padding + (height - padding * 2) * (1 - item.value / max)
     return `${x},${y}`
   })
   
   const firstX = padding
   const lastX = padding + (hourlyUsage.value.length - 1) * step
+  const bottomY = height - padding
   
-  return `M ${firstX},${height - padding} L ${points.join(' L ')} L ${lastX},${height - padding} Z`
+  return `M ${firstX},${bottomY} L ${points.join(' L ')} L ${lastX},${bottomY} Z`
 })
+
+// 호버된 데이터 포인트
+const hoveredIndex = ref<number | null>(null)
 </script>
 
 <template>
@@ -193,39 +197,59 @@ const areaPath = computed(() => {
         >
           데이터를 불러오는 중...
         </div>
-        <svg v-else viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
-          <!-- 그라데이션 영역 -->
-          <defs>
-            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.3" />
-              <stop offset="100%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.05" />
-            </linearGradient>
-          </defs>
+        <div v-else class="relative w-full h-full">
+          <svg viewBox="0 0 100 100" class="w-full h-full">
+            <!-- 그라데이션 영역 -->
+            <defs>
+              <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.05" />
+              </linearGradient>
+            </defs>
+            
+            <!-- 배경 영역 -->
+            <path :d="areaPath" fill="url(#areaGradient)" />
+            
+            <!-- 선 그래프 -->
+            <path 
+              :d="linePath" 
+              fill="none" 
+              stroke="rgb(59, 130, 246)" 
+              stroke-width="0.5" 
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            
+            <!-- 데이터 포인트 -->
+            <circle
+              v-for="(item, idx) in hourlyUsage"
+              :key="idx"
+              :cx="10 + idx * (80 / Math.max(hourlyUsage.length - 1, 1))"
+              :cy="10 + 80 * (1 - item.value / maxUsage)"
+              :r="hoveredIndex === idx ? 1.2 : 0.8"
+              fill="rgb(59, 130, 246)"
+              stroke="white"
+              :stroke-width="hoveredIndex === idx ? 0.3 : 0"
+              class="transition-all cursor-pointer"
+              @mouseenter="hoveredIndex = idx"
+              @mouseleave="hoveredIndex = null"
+            />
+          </svg>
           
-          <!-- 배경 영역 -->
-          <path :d="areaPath" fill="url(#areaGradient)" />
-          
-          <!-- 선 그래프 -->
-          <path 
-            :d="linePath" 
-            fill="none" 
-            stroke="rgb(59, 130, 246)" 
-            stroke-width="0.8" 
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          
-          <!-- 데이터 포인트 -->
-          <circle
-            v-for="(item, idx) in hourlyUsage"
-            :key="idx"
-            :cx="5 + idx * (90 / (hourlyUsage.length - 1))"
-            :cy="95 - ((item.value / maxUsage) * 90)"
-            r="1.5"
-            fill="rgb(59, 130, 246)"
-            class="hover:r-2 transition-all"
-          />
-        </svg>
+          <!-- 호버 툴팁 -->
+          <div
+            v-if="hoveredIndex !== null"
+            class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pointer-events-none z-10 shadow-xl"
+            :style="{
+              left: `${(hoveredIndex / Math.max(hourlyUsage.length - 1, 1)) * 100}%`,
+              top: '50%',
+              transform: 'translate(-50%, -50%)'
+            }"
+          >
+            <div class="text-[11px] text-gray-400">{{ hourlyUsage[hoveredIndex].hour }}시</div>
+            <div class="text-sm font-semibold text-white">{{ hourlyUsage[hoveredIndex].value }} kWh</div>
+          </div>
+        </div>
       </div>
       
       <!-- X축 레이블 -->
