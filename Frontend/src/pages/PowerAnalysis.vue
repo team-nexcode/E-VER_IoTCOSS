@@ -309,32 +309,7 @@ const areaPath = computed(() => {
         </div>
 
 
-        <!-- ✅ AI 코멘트 (애플 느낌: 유리질감 + 얇은 라인 + 미니멀) -->
-        <div
-          class="mt-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md
-                 shadow-[0_10px_30px_rgba(0,0,0,0.25)] px-4 py-4"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span
-                class="w-1.5 h-1.5 rounded-full"
-                :class="isRisky ? 'bg-amber-300' : 'bg-emerald-300'"
-              />
-              <div class="text-xs font-semibold text-white/90 tracking-tight">
-                AI 코멘트
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <span
-                class="text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-black/20 text-white/70"
-              >
-                {{ report.state_now.state }}
-              </span>
-              <span class="text-[11px] px-2 py-0.5 rounded-full border" :class="statusBadge.cls">
-                {{ statusBadge.text }}
-              </span>
-        <!-- AI 코멘트 (긴 문장은 여기에 모아 가독성 확보) -->
+        <!-- AI 코멘트 -->
         <div class="mt-4 rounded-2xl border border-gray-800 bg-gray-900/30 p-4">
           <div class="flex items-start gap-3">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center border bg-purple-500/10 border-purple-500/20 flex-shrink-0">
@@ -346,22 +321,9 @@ const areaPath = computed(() => {
               <p class="text-sm text-gray-200 mt-1 leading-relaxed break-words">
                 {{ report.openai_analysis?.summary || '분석 데이터를 불러오는 중입니다...' }}
               </p>
-
             </div>
           </div>
-
-          <div class="mt-3 h-px bg-white/10"></div>
-
-          <p class="mt-3 text-[14px] leading-relaxed text-white/85 break-words">
-            {{ summary }}
-          </p>
         </div>
-
-
-        <!-- 권장 조치 (그대로) -->
-        <div class="mt-4">
-          <div class="text-xs text-gray-400">권장 조치</div>
-          <div class="mt-2 space-y-2">
 
         <!-- 권장사항 (OpenAI 분석) -->
         <div v-if="report.openai_analysis?.recommendations?.length" class="mt-4">
