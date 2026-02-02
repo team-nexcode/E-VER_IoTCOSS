@@ -31,6 +31,7 @@ from app.api.ai_analysis import router as ai_router
 from app.services.mqtt_service import mqtt_service
 from app.services.mobius_service import mobius_service
 from app.services.schedule_service import schedule_service
+from app.services.ai_auto_control_service import start_ai_auto_control_service
 
 # DB 세션 (로그 저장용)
 from app.database import async_session
@@ -236,12 +237,17 @@ async def lifespan(app: FastAPI):
     schedule_task = asyncio.create_task(schedule_service.start())
     logger.info("스케줄 서비스 시작")
 
+    # AI 자동 제어 서비스 시작 (60분 주기)
+    ai_control_task = asyncio.create_task(start_ai_auto_control_service(interval_minutes=60))
+    logger.info("AI 자동 제어 서비스 시작 (60분 주기)")
+
     yield
 
     if mqtt_listen_task:
         mqtt_listen_task.cancel()
     offline_checker_task.cancel()
     schedule_task.cancel()
+    ai_control_task.cancel()
     await schedule_service.stop()
 
     # === 앱 종료 시 ===

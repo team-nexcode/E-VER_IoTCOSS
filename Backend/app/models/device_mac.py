@@ -5,7 +5,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -25,9 +25,12 @@ class DeviceMac(Base):
     location: Mapped[str] = mapped_column(
         String(100), nullable=False, comment="설치 위치"
     )
+    ai_auto_control: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="AI 자동 제어 활성화 여부"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False, comment="등록 시각"
     )
 
     def __repr__(self) -> str:
-        return f"<DeviceMac(id={self.id}, name='{self.device_name}', mac='{self.device_mac}')>"
+        return f"<DeviceMac(id={self.id}, name='{self.device_name}', mac='{self.device_mac}', ai_auto={self.ai_auto_control})>"

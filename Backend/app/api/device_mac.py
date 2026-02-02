@@ -162,3 +162,53 @@ async def delete_device_mac(device_id: int, db: AsyncSession = Depends(get_db)):
         message=f"[device_mac] DELETE: {deleted_info['device_name']} ({deleted_info['device_mac']})",
         detail=json.dumps({"table": "device_mac", "action": "DELETE", **deleted_info}, ensure_ascii=False),
     )
+
+
+@router.patch("/{device_id}/ai-control", response_model=DeviceMacResponse, summary="AI 자동 제어 토글")
+async def toggle_ai_control(
+    device_id: int,
+    enabled: bool,
+    db: AsyncSession = Depends(get_db),
+):
+    """디바이스의 AI 자동 제어를 활성화/비활성화합니다."""
+    device = await db.get(DeviceMac, device_id)
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"디바이스(ID: {device_id})를 찾을 수 없습니다.",
+        )
+    
+    old_value = device.ai_auto_control
+    device.ai_auto_control = enabled
+    await db.flush()
+    await db.refresh(device)
+
+    detail_data = {
+        "id": device_id,
+        "device_name": device.device_name,
+        "device_mac": device.device_mac,
+        "ai_auto_control": enabled,
+        "old_value": old_value,
+    }
+    await _write_system_log(db, "AI_CONTROL_UPDATE", detail_data)
+    await db.commit()
+    invalidate_device_mac_cache()
+    await broadcast_system_log(
+        message=f"[device_mac] AI 자동 제어 {'활성화' if enabled else '비활성화'}: {device.device_name}",
+        detail=json.dumps({"table": "device_mac", "action": "AI_CONTROL_UPDATE", **detail_data}, ensure_ascii=False),
+    )
+    return device
+
+
+@router.get("/ai-enabled", summary="AI 자동 제어가 활성화된 디바이스 목록")
+async def get_ai_enabled_devices(db: AsyncSession = Depends(get_db)):
+    """AI 자동 제어가 활성화된 디바이스 목록을 반환합니다."""
+    result = await db.execute(
+        select(DeviceMac).where(DeviceMac.ai_auto_control == True).order_by(DeviceMac.id)
+    )
+    devices = result.scalars().all()
+    
+    return {
+        "items": [DeviceMacResponse.model_validate(d) for d in devices],
+        "total": len(devices),
+    }

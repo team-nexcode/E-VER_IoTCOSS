@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next'
 import { useDeviceStore } from '@/stores/device' // 프로젝트에 따라 useDeviceMacStore로 변경 가능
 import { storeToRefs } from 'pinia'
+import axios from 'axios'
 
 const route = useRoute()
 const deviceStore = useDeviceStore()
@@ -37,25 +38,53 @@ const navItems = [
 const isAIPanelOpen = ref(false)
 const aiSettings = ref<Record<number, boolean>>({})
 
+// DB에서 초기 상태 로드
+async function loadAISettings() {
+  try {
+    const response = await axios.get('http://iotcoss.nexcode.kr:8000/api/device_mac/')
+    const devicesData = response.data.items
+    const settings: Record<number, boolean> = {}
+    devicesData.forEach((device: any) => {
+      settings[device.id] = device.ai_auto_control || false
+    })
+    aiSettings.value = settings
+  } catch (error) {
+    console.error('AI 설정 로드 실패:', error)
+    // localStorage에서 fallback
+    const saved = localStorage.getItem('ai_device_settings')
+    if (saved) aiSettings.value = JSON.parse(saved)
+  }
+}
+
 onMounted(() => {
-  const saved = localStorage.getItem('ai_device_settings')
-  if (saved) aiSettings.value = JSON.parse(saved)
+  loadAISettings()
 })
 
-watch(aiSettings, (newVal) => {
-  localStorage.setItem('ai_device_settings', JSON.stringify(newVal))
-}, { deep: true })
+// 토글 변경 시 DB에 저장
+async function toggleDeviceAI(deviceId: number, enabled: boolean) {
+  try {
+    await axios.patch(
+      `http://iotcoss.nexcode.kr:8000/api/device_mac/${deviceId}/ai-control`,
+      null,
+      { params: { enabled } }
+    )
+    aiSettings.value[deviceId] = enabled
+    localStorage.setItem('ai_device_settings', JSON.stringify(aiSettings.value))
+  } catch (error) {
+    console.error('AI 설정 저장 실패:', error)
+  }
+}
 
 const isAllSelected = computed(() => {
   if (devices.value.length === 0) return false
   return devices.value.every(d => aiSettings.value[d.id])
 })
 
-function toggleAllAI() {
+async function toggleAllAI() {
   const targetState = !isAllSelected.value
-  const newSettings = { ...aiSettings.value }
-  devices.value.forEach(d => { newSettings[d.id] = targetState })
-  aiSettings.value = newSettings
+  for (const device of devices.value) {
+    await toggleDeviceAI(device.id, targetState)
+  }
 }
 
 /** =========================
@@ -163,7 +192,7 @@ onUnmounted(() => {
               <span class="text-sm font-bold text-gray-300 truncate">{{ device.name }}</span>
               <span class="text-[11px] text-gray-500 uppercase">{{ device.location }}</span>
             </div>
-            <button @click="aiSettings[device.id] = !aiSettings[device.id]" :class="['relative inline-flex h-4.5 w-8 items-center rounded-full transition-colors', aiSettings[device.id] ? 'bg-blue-500' : 'bg-gray-800']">
+            <button @click="toggleDeviceAI(device.id, !aiSettings[device.id])" :class="['relative inline-flex h-4.5 w-8 items-center rounded-full transition-colors', aiSettings[device.id] ? 'bg-blue-500' : 'bg-gray-800']">
               <span :class="['inline-block h-3 w-3 transform rounded-full bg-white transition-transform', aiSettings[device.id] ? 'translate-x-4' : 'translate-x-0.5']" />
             </button>
           </div>

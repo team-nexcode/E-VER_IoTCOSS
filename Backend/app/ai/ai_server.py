@@ -206,22 +206,26 @@ BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
 THR_PATH = MODELS_DIR / "thresholds.json"
 BASELINE_PATH = MODELS_DIR / "baselines.json"
+PROFILE_PATH = MODELS_DIR / "profiles.json"
 
 logger.info(f"📁 BASE_DIR   : {BASE_DIR}")
 logger.info(f"📁 MODELS_DIR : {MODELS_DIR}")
 logger.info(f"📄 thresholds.json exists? {THR_PATH.exists()} -> {THR_PATH}")
 logger.info(f"📄 baselines.json exists?  {BASELINE_PATH.exists()} -> {BASELINE_PATH}")
+logger.info(f"📄 profiles.json exists?   {PROFILE_PATH.exists()} -> {PROFILE_PATH}")
 
 
 class ModelStore:
     def __init__(self):
         self.thresholds: Dict[str, Dict[str, Any]] = {}
         self.baselines: Dict[str, Dict[str, Any]] = {}
+        self.profiles: Dict[str, Dict[str, Any]] = {}
 
     def load(self):
         logger.info("🔁 Loading models...")
         self.thresholds = {}
         self.baselines = {}
+        self.profiles = {}
 
         if THR_PATH.exists():
             self.thresholds = json.loads(THR_PATH.read_text(encoding="utf-8"))
@@ -235,6 +239,12 @@ class ModelStore:
         else:
             logger.warning("⚠️ baselines.json not found. anomaly detection will return empty.")
 
+        if PROFILE_PATH.exists():
+            self.profiles = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+            logger.info(f"✅ profiles loaded: {len(self.profiles)} devices")
+        else:
+            logger.warning("⚠️ profiles.json not found. smart auto control unavailable.")
+
     def get_threshold(self, mac: str, fallback: float = 0.05) -> float:
         item = self.thresholds.get(mac)
         if not item:
@@ -243,6 +253,9 @@ class ModelStore:
 
     def get_baseline(self, mac: str) -> Optional[Dict[str, Any]]:
         return self.baselines.get(mac)
+
+    def get_profile(self, mac: str) -> Optional[Dict[str, Any]]:
+        return self.profiles.get(mac)
 
 
 store = ModelStore()
@@ -563,6 +576,79 @@ async def get_report(
         "anomalies": anomalies,
         "waste": waste,
         "summary": summary,
+    }
+
+
+@app.get("/devices/{device_mac}/auto-control-recommendation")
+async def get_auto_control_recommendation(device_mac: str):
+    """
+    profiles.json 기반으로 현재 시간에 릴레이를 켜야 할지 꺼야 할지 추천
+    - on_rate >= 0.5: ON (사용 예정 시간)
+    - on_rate < 0.5: OFF (미사용 시간, 대기전력 차단)
+    """
+    logger.debug(f"[API] /devices/{device_mac}/auto-control-recommendation")
+    
+    profile = store.get_profile(device_mac)
+    if not profile or "on_rate" not in profile:
+        return {
+            "device_mac": device_mac,
+            "action": "OFF",
+            "reason": "프로파일 없음 (기본 OFF)",
+            "on_rate": 0.0
+        }
+    
+    now = datetime.now()
+    dow = now.weekday()  # 0=월요일
+    hour = now.hour
+    
+    on_rate = profile["on_rate"][dow][hour]
+    
+    # 0.5 기준으로 ON/OFF 결정
+    if on_rate >= 0.5:
+        action = "ON"
+        reason = f"사용률 {on_rate*100:.0f}% - 사용 예정 시간"
+    else:
+        action = "OFF"
+        reason = f"사용률 {on_rate*100:.0f}% - 미사용 시간 (대기전력 차단)"
+    
+    logger.info(f"[AUTO_CONTROL] {device_mac} -> {action} ({reason})")
+    
+    return {
+        "device_mac": device_mac,
+        "device_name": profile.get("device_name", "Unknown"),
+        "current_hour": hour,
+        "on_rate": round(on_rate, 2),
+        "action": action,
+        "reason": reason
+    }
+
+
+@app.get("/auto-control/recommendations")
+async def get_all_auto_control_recommendations():
+    """모든 디바이스에 대한 자동 제어 추천"""
+    logger.debug("[API] /auto-control/recommendations")
+    
+    if not store.profiles:
+        return {"items": [], "total": 0}
+    
+    recommendations = []
+    for device_mac in store.profiles.keys():
+        try:
+            rec = await get_auto_control_recommendation(device_mac)
+            recommendations.append(rec)
+        except Exception as e:
+            logger.warning(f"추천 생성 실패 {device_mac}: {e}")
+            continue
+    
+    action_counts = {"ON": 0, "OFF": 0}
+    for rec in recommendations:
+        action_counts[rec["action"]] += 1
+    
+    return {
+        "items": recommendations,
+        "total": len(recommendations),
+        "action_summary": action_counts,
+        "generated_at": datetime.now().isoformat()
     }
 
 

@@ -29,6 +29,7 @@ class DeviceMacResponse(BaseModel):
     device_name: str
     device_mac: str
     location: str
+    ai_auto_control: bool
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
