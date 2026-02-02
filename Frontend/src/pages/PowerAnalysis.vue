@@ -37,10 +37,17 @@ const maxUsage = Math.max(...hourlyUsage.map((h) => h.value))
  */
 type AnalysisReport = {
   hours: number
-  waste: { standby_wh: number }
-  anomalies: { count: number }
-  state_now: { state: string }
-  summary?: string
+  device_count: number
+  total_anomaly_count: number
+  total_standby_wh: number
+  total_monthly_kwh: number
+  total_monthly_cost: number
+  devices: Array<{
+    device_name: string
+    anomaly_count: number
+    standby_wh: number
+    state: string
+  }>
   openai_analysis?: {
     summary: string
     recommendations: string[]
@@ -48,59 +55,43 @@ type AnalysisReport = {
     standby_insights: string
     estimated_savings: string
   }
-  monthly_cost?: number
-  monthly_kwh?: number
 }
 
 const report = ref<AnalysisReport>({
   hours: 24,
-  waste: { standby_wh: 0 },
-  anomalies: { count: 0 },
-  state_now: { state: 'IDLE' },
+  device_count: 0,
+  total_anomaly_count: 0,
+  total_standby_wh: 0,
+  total_monthly_kwh: 0,
+  total_monthly_cost: 0,
+  devices: []
 })
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// AI 리포트 가져오기 (OpenAI 분석 포함)
+// AI 리포트 가져오기 (모든 기기 종합 분석)
 async function fetchAIReport() {
   loading.value = true
   error.value = null
   
   try {
-    // 백엔드를 통해 AI 서버 + OpenAI 분석 받기
+    // 백엔드를 통해 모든 기기의 AI 서버 + OpenAI 분석 받기
     const response = await axios.get('http://iotcoss.nexcode.kr:8000/api/ai/analyze-ai-server', {
-      params: {
-        device_mac: '48:27:E2:E0:53:DC',
-        hours: 24
-      }
+      params: { hours: 24 }
     })
     
     const data = response.data
     
-    if (data.openai_available) {
-      // OpenAI 분석 성공 - 구조화된 데이터 사용
-      report.value = {
-        hours: data.hours,
-        waste: { standby_wh: data.ai_server_data.standby_wh },
-        anomalies: { count: data.ai_server_data.anomaly_count },
-        state_now: { state: data.ai_server_data.state },
-        summary: data.ai_server_data.basic_summary,
-        openai_analysis: data.openai_analysis,
-        monthly_cost: data.ai_server_data.monthly_cost,
-        monthly_kwh: data.ai_server_data.monthly_standby_kwh
-      }
-    } else {
-      // OpenAI 실패, 기본 데이터만 사용
-      report.value = {
-        hours: data.hours,
-        waste: { standby_wh: data.basic_analysis.standby_wh },
-        anomalies: { count: data.basic_analysis.anomaly_count },
-        state_now: { state: data.basic_analysis.state },
-        summary: data.ai_server_summary,
-        monthly_cost: data.basic_analysis.monthly_cost,
-        monthly_kwh: data.basic_analysis.monthly_standby_kwh
-      }
+    report.value = {
+      hours: data.hours,
+      device_count: data.device_count,
+      total_anomaly_count: data.total_anomaly_count,
+      total_standby_wh: data.total_standby_wh,
+      total_monthly_kwh: data.total_monthly_kwh,
+      total_monthly_cost: data.total_monthly_cost,
+      devices: data.devices,
+      openai_analysis: data.openai_available ? data.openai_analysis : undefined
     }
   } catch (e: any) {
     console.error('AI 리포트 로드 실패:', e)
@@ -114,33 +105,28 @@ onMounted(() => {
   fetchAIReport()
 })
 
-const standbyHigh = computed(() => report.value.waste.standby_wh >= 50)
-const anomaliesHigh = computed(() => report.value.anomalies.count >= 3)
+const standbyHigh = computed(() => report.value.total_standby_wh >= 50)
+const anomaliesHigh = computed(() => report.value.total_anomaly_count >= 3)
 
-// ✅ OpenAI 구조화된 분석 우선, 없으면 AI 서버 summary, 그것도 없으면 기본 로직
+// ✅ OpenAI 구조화된 분석 우선, 없으면 기본 로직
 const summary = computed(() => {
   // OpenAI 구조화된 분석이 있으면 summary 사용
   if (report.value.openai_analysis?.summary) {
     return report.value.openai_analysis.summary
   }
   
-  // AI 서버에서 받은 summary 사용
-  if (report.value.summary) {
-    return report.value.summary
-  }
-  
-  // 없으면 기존 로직으로 생성
+  // 없으면 기본 로직으로 생성
   const hours = report.value.hours
-  const waste = report.value.waste
-  const anomalies = report.value.anomalies
-  const state_now = report.value.state_now
+  const standby = report.value.total_standby_wh
+  const anomalies = report.value.total_anomaly_count
+  const devices = report.value.device_count
 
   let s =
-    `최근 ${hours}시간 기준 standby 추정 ${waste.standby_wh.toFixed(2)}Wh, ` +
-    `이상치 ${anomalies.count}건, 현재 상태 ${state_now.state}.`
+    `최근 ${hours}시간 기준 ${devices}개 기기에서 standby 추정 ${standby.toFixed(2)}Wh, ` +
+    `이상치 ${anomalies}건 감지되었습니다.`
 
-  if (waste.standby_wh >= 50) s += ' standby 낭비가 큰 편이라 미사용 시 차단을 권장.'
-  if (anomalies.count >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검 권장.'
+  if (standby >= 50) s += ' 대기전력 낭비가 큰 편이라 미사용 시 차단을 권장합니다.'
+  if (anomalies >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검을 권장합니다.'
   return s
 })
 
@@ -304,11 +290,11 @@ const reportBadge = computed(() => {
             </span>
           </div>
           <div class="mt-2 text-2xl font-bold text-white tabular-nums">
-            {{ report.waste.standby_wh.toFixed(2) }}
+            {{ report.total_standby_wh.toFixed(2) }}
             <span class="text-xs font-medium text-gray-400 ml-1">Wh</span>
           </div>
           <p class="mt-2 text-xs text-gray-500 leading-relaxed">
-            미사용 상태에서 누적되는 대기전력 추정치입니다.
+            전체 {{ report.device_count }}개 기기의 대기전력 합계입니다.
           </p>
         </div>
 
@@ -329,25 +315,25 @@ const reportBadge = computed(() => {
             </span>
           </div>
           <div class="mt-2 text-2xl font-bold text-white tabular-nums">
-            {{ report.anomalies.count }}
+            {{ report.total_anomaly_count }}
             <span class="text-xs font-medium text-gray-400 ml-1">건</span>
           </div>
           <p class="mt-2 text-xs text-gray-500 leading-relaxed">
-            순간 튐/패턴 이탈 등 이상 이벤트 횟수입니다.
+            전체 기기에서 감지된 이상 이벤트 횟수입니다.
           </p>
         </div>
 
         <div class="rounded-2xl border border-gray-800 bg-gray-900/40 px-4 py-4">
-          <div class="text-[11px] text-gray-400 flex items-center gap-2">
-            <FileText class="w-4 h-4 text-purple-300" />
-            분석 구간
+          <div class="text-xs text-gray-400 flex items-center gap-2">
+            <PlugZap class="w-4 h-4 text-yellow-400" />
+            전력 소비 상위 디바이스
           </div>
           <div class="mt-2 text-2xl font-bold text-white tabular-nums">
-            {{ report.hours }}
-            <span class="text-xs font-medium text-gray-400 ml-1">시간</span>
+            {{ report.device_count }}
+            <span class="text-xs font-medium text-gray-400 ml-1">개 기기</span>
           </div>
           <p class="mt-2 text-xs text-gray-500 leading-relaxed">
-            최근 데이터를 기준으로 리포트를 생성합니다.
+            전체 기기 현황을 종합 분석했습니다.
           </p>
         </div>
       </div>
