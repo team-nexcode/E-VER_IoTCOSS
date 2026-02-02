@@ -103,52 +103,18 @@ onMounted(() => {
   fetchAIReport()
 })
 
-// 꺾은선 그래프용 SVG Path 생성
-const linePath = computed(() => {
-  if (hourlyUsage.value.length === 0) return ''
-  
-  const width = 100
-  const height = 100
-  const padding = 5
-  
-  const max = Math.max(maxUsage.value, 0.1) // 최소값 보장
-  
-  const points = hourlyUsage.value.map((item) => {
-    const hourNum = parseInt(item.hour)
-    const x = padding + (hourNum / 24) * (width - padding * 2) // 시간 비례로 X 위치 계산
-    const y = height - padding - ((item.value / max) * (height - padding * 2))
-    return `${x},${y}`
-  })
-  
-  return `M ${points.join(' L ')}`
-})
-
-// 그래프 하단 채우기용 Path
-const areaPath = computed(() => {
-  if (hourlyUsage.value.length === 0) return ''
-  
-  const width = 100
-  const height = 100
-  const padding = 5
-  
-  const max = Math.max(maxUsage.value, 0.1) // 최소값 보장
-  
-  const points = hourlyUsage.value.map((item) => {
-    const hourNum = parseInt(item.hour)
-    const x = padding + (hourNum / 24) * (width - padding * 2)
-    const y = height - padding - ((item.value / max) * (height - padding * 2))
-    return `${x},${y}`
-  })
-  
-  const firstX = padding + (parseInt(hourlyUsage.value[0].hour) / 24) * (width - padding * 2)
-  const lastX = padding + (parseInt(hourlyUsage.value[hourlyUsage.value.length - 1].hour) / 24) * (width - padding * 2)
-  const bottomY = height - padding
-  
-  return `M ${firstX},${bottomY} L ${points.join(' L ')} L ${lastX},${bottomY} Z`
-})
-
 // 호버된 데이터 포인트
 const hoveredIndex = ref<number | null>(null)
+
+// 그래프 계산 함수
+function getChartX(hour: number): number {
+  return 5 + (hour / 21) * 90 // 0~21시를 5%~95%로 매핑
+}
+
+function getChartY(value: number): number {
+  const max = Math.max(maxUsage.value, 0.1)
+  return 95 - (value / max) * 90 // 값을 5%~95% 범위로 매핑
+}
 </script>
 
 <template>
@@ -190,7 +156,7 @@ const hoveredIndex = ref<number | null>(null)
         </span>
       </div>
 
-      <div class="relative h-44 mb-2">
+      <div class="relative h-44 mb-4">
         <div
           v-if="hourlyUsage.length === 0"
           class="flex items-center justify-center w-full h-full text-gray-500 text-sm"
@@ -198,8 +164,7 @@ const hoveredIndex = ref<number | null>(null)
           데이터를 불러오는 중...
         </div>
         <div v-else class="relative w-full h-full">
-          <svg viewBox="0 0 100 100" class="w-full h-full">
-            <!-- 그라데이션 영역 -->
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
             <defs>
               <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.3" />
@@ -208,60 +173,67 @@ const hoveredIndex = ref<number | null>(null)
             </defs>
             
             <!-- 배경 영역 -->
-            <path :d="areaPath" fill="url(#areaGradient)" />
+            <path
+              :d="`M ${getChartX(parseInt(hourlyUsage[0].hour))},95 ` +
+                  hourlyUsage.map(item => `L ${getChartX(parseInt(item.hour))},${getChartY(item.value)}`).join(' ') +
+                  ` L ${getChartX(parseInt(hourlyUsage[hourlyUsage.length - 1].hour))},95 Z`"
+              fill="url(#areaGradient)"
+            />
             
             <!-- 선 그래프 -->
-            <path 
-              :d="linePath" 
-              fill="none" 
-              stroke="rgb(59, 130, 246)" 
-              stroke-width="0.5" 
+            <polyline
+              :points="hourlyUsage.map(item => `${getChartX(parseInt(item.hour))},${getChartY(item.value)}`).join(' ')"
+              fill="none"
+              stroke="rgb(59, 130, 246)"
+              stroke-width="0.5"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
-            
-            <!-- 데이터 포인트 -->
-            <circle
-              v-for="(item, idx) in hourlyUsage"
-              :key="idx"
-              :cx="5 + (parseInt(item.hour) / 24) * 90"
-              :cy="95 - ((item.value / Math.max(maxUsage, 0.1)) * 90)"
-              :r="hoveredIndex === idx ? 1.2 : 0.8"
-              fill="rgb(59, 130, 246)"
-              stroke="white"
-              :stroke-width="hoveredIndex === idx ? 0.3 : 0"
-              class="transition-all cursor-pointer"
-              @mouseenter="hoveredIndex = idx"
-              @mouseleave="hoveredIndex = null"
-            />
           </svg>
           
-          <!-- 호버 툴팁 -->
+          <!-- 데이터 포인트와 툴팁 (absolute 위치) -->
           <div
-            v-if="hoveredIndex !== null"
-            class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pointer-events-none z-10 shadow-xl whitespace-nowrap"
+            v-for="(item, idx) in hourlyUsage"
+            :key="idx"
+            class="absolute"
             :style="{
-              left: `${5 + (parseInt(hourlyUsage[hoveredIndex].hour) / 24) * 90}%`,
-              top: '50%',
-              transform: hoveredIndex === 0 ? 'translateY(-50%)' : hoveredIndex === hourlyUsage.length - 1 ? 'translate(-100%, -50%)' : 'translate(-50%, -50%)'
+              left: `${getChartX(parseInt(item.hour))}%`,
+              top: `${getChartY(item.value)}%`,
+              transform: 'translate(-50%, -50%)'
             }"
           >
-            <div class="text-[11px] text-gray-400">{{ hourlyUsage[hoveredIndex].hour }}시</div>
-            <div class="text-sm font-semibold text-white">{{ hourlyUsage[hoveredIndex].value }} kWh</div>
+            <!-- 포인트 -->
+            <div
+              class="w-2 h-2 rounded-full bg-blue-400 border-2 border-white cursor-pointer transition-all"
+              :class="{ 'w-3 h-3': hoveredIndex === idx }"
+              @mouseenter="hoveredIndex = idx"
+              @mouseleave="hoveredIndex = null"
+            ></div>
+            
+            <!-- 툴팁 -->
+            <div
+              v-if="hoveredIndex === idx"
+              class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 shadow-xl whitespace-nowrap z-10"
+              :style="{
+                left: idx === 0 ? '0' : idx === hourlyUsage.length - 1 ? 'auto' : '50%',
+                right: idx === hourlyUsage.length - 1 ? '0' : 'auto',
+                top: '-45px',
+                transform: idx === 0 || idx === hourlyUsage.length - 1 ? 'none' : 'translateX(-50%)'
+              }"
+            >
+              <div class="text-[11px] text-gray-400">{{ item.hour }}시</div>
+              <div class="text-sm font-semibold text-white">{{ item.value.toFixed(2) }} kWh</div>
+            </div>
           </div>
         </div>
       </div>
       
       <!-- X축 레이블 -->
-      <div class="relative px-2" style="height: 20px;">
+      <div class="flex justify-between px-2">
         <span
-          v-for="(item, idx) in hourlyUsage"
+          v-for="item in hourlyUsage"
           :key="item.hour"
-          class="absolute text-[11px] text-gray-400"
-          :style="{ 
-            left: `${5 + (parseInt(item.hour) / 24) * 90}%`,
-            transform: 'translateX(-50%)'
-          }"
+          class="text-[11px] text-gray-400"
         >
           {{ item.hour }}시
         </span>
