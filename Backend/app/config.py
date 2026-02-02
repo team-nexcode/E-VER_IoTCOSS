@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     mp_url: str = "https://onem2m.iotcoss.ac.kr"
     cb: str = "Mobius"
 
+    # OpenAI 설정
+    OPENAI_API_KEY: str = Field(default="", validation_alias="OPENAI_API_KEY")
+    
+    # AI Report 서버 설정 (다른 팀원이 구현한 AI)
+    AI_REPORT_URL: str = Field(default="http://localhost:5000", validation_alias="AI_REPORT_URL")
+
     @property
     def mobius_base_url(self) -> str:
         """Mobius CSE 베이스 URL"""

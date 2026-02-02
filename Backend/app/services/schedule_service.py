@@ -52,7 +52,7 @@ class ScheduleService:
         
         self.is_running = True
         logger.info("=" * 50)
-        logger.info("스케줄 서비스 시작 - 매 분마다 스케줄 체크")
+        logger.info("스케줄 서비스 시작 - 1분마다 스케줄 체크")
         logger.info("=" * 50)
         
         print("[SCHEDULE SERVICE] is_running = True 설정 완료")
@@ -82,7 +82,7 @@ class ScheduleService:
         while self.is_running:
             try:
                 await self._check_schedules()
-                await asyncio.sleep(30)
+                await asyncio.sleep(60)  # 1분마다 체크
             except Exception as e:
                 logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
                 # 오류를 SystemLog에 기록 (새 세션 사용)

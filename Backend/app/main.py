@@ -25,6 +25,7 @@ from app.api.api_logs import router as api_logs_router
 from app.api.system_logs import router as system_logs_router
 from app.api.device_mac import router as device_mac_router
 from app.api.schedules import router as schedules_router
+from app.api.ai_analysis import router as ai_router
 
 # 서비스 import
 from app.services.mqtt_service import mqtt_service
@@ -290,6 +291,7 @@ app.include_router(api_logs_router)
 app.include_router(system_logs_router)
 app.include_router(device_mac_router)
 app.include_router(schedules_router)
+app.include_router(ai_router)
 
 
 @app.get("/api/health", tags=["헬스체크"])
