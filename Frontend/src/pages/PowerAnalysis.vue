@@ -109,9 +109,9 @@ const linePath = computed(() => {
   
   const width = 100
   const height = 100
-  const padding = 10
+  const padding = 5
   
-  const max = maxUsage.value
+  const max = maxUsage.value * 1.1 // 10% 여유 공간
   const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
@@ -129,9 +129,9 @@ const areaPath = computed(() => {
   
   const width = 100
   const height = 100
-  const padding = 10
+  const padding = 5
   
-  const max = maxUsage.value
+  const max = maxUsage.value * 1.1 // 10% 여유 공간
   const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
@@ -224,8 +224,8 @@ const hoveredIndex = ref<number | null>(null)
             <circle
               v-for="(item, idx) in hourlyUsage"
               :key="idx"
-              :cx="10 + idx * (80 / Math.max(hourlyUsage.length - 1, 1))"
-              :cy="10 + 80 * (1 - item.value / maxUsage)"
+              :cx="5 + idx * (90 / Math.max(hourlyUsage.length - 1, 1))"
+              :cy="5 + 90 * (1 - item.value / (maxUsage * 1.1))"
               :r="hoveredIndex === idx ? 1.2 : 0.8"
               fill="rgb(59, 130, 246)"
               stroke="white"
@@ -239,11 +239,11 @@ const hoveredIndex = ref<number | null>(null)
           <!-- 호버 툴팁 -->
           <div
             v-if="hoveredIndex !== null"
-            class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pointer-events-none z-10 shadow-xl"
+            class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pointer-events-none z-10 shadow-xl whitespace-nowrap"
             :style="{
-              left: `${(hoveredIndex / Math.max(hourlyUsage.length - 1, 1)) * 100}%`,
+              left: hoveredIndex === 0 ? '5%' : hoveredIndex === hourlyUsage.length - 1 ? '95%' : `${(hoveredIndex / Math.max(hourlyUsage.length - 1, 1)) * 100}%`,
               top: '50%',
-              transform: 'translate(-50%, -50%)'
+              transform: hoveredIndex === 0 ? 'translateY(-50%)' : hoveredIndex === hourlyUsage.length - 1 ? 'translate(-100%, -50%)' : 'translate(-50%, -50%)'
             }"
           >
             <div class="text-[11px] text-gray-400">{{ hourlyUsage[hoveredIndex].hour }}시</div>
