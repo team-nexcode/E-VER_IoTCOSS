@@ -3,15 +3,16 @@
 디바이스 전력 사용량 조회 및 요약 정보를 제공합니다.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.power_log import PowerLog
+from app.models.device import Device
 from app.schemas.power import PowerLogResponse, PowerSummary
 
 router = APIRouter(prefix="/api/power", tags=["전력 데이터"])
@@ -59,3 +60,54 @@ async def get_power_summary(db: AsyncSession = Depends(get_db)):
         average_power_watts=0.0,
         max_power_watts=0.0,
     )
+
+
+@router.get("/daily", summary="일별 총 전력량 조회")
+async def get_daily_power(
+    days: int = Query(default=7, ge=1, le=30, description="조회할 일수 (기본: 7일)"),
+    device_mac: Optional[str] = Query(None, description="특정 디바이스 MAC 주소 (없으면 전체)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """일별 총 전력량을 반환합니다. device_mac이 있으면 해당 디바이스만, 없으면 전체 합계를 반환합니다."""
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=days - 1)
+    
+    # 날짜별로 그룹화하여 평균 전력 계산
+    query = select(
+        cast(Device.timestamp, Date).label('date'),
+        func.avg(Device.energy_amp).label('avg_power')
+    ).where(
+        Device.timestamp >= start_date,
+        Device.timestamp <= datetime.combine(end_date, datetime.max.time()),
+        Device.energy_amp.isnot(None)
+    )
+    
+    if device_mac:
+        query = query.where(Device.device_mac == device_mac)
+    
+    query = query.group_by(cast(Device.timestamp, Date)).order_by(cast(Device.timestamp, Date))
+    
+    result = await db.execute(query)
+    rows = result.all()
+    
+    # 결과를 date와 power로 변환
+    daily_data = []
+    for row in rows:
+        daily_data.append({
+            "date": row.date.strftime("%m/%d"),
+            "power": round(row.avg_power or 0, 2)
+        })
+    
+    # 데이터가 없는 날짜는 0으로 채우기
+    date_dict = {item["date"]: item["power"] for item in daily_data}
+    result_data = []
+    
+    for i in range(days):
+        current_date = start_date + timedelta(days=i)
+        date_str = current_date.strftime("%m/%d")
+        result_data.append({
+            "date": date_str,
+            "power": date_dict.get(date_str, 0)
+        })
+    
+    return result_data

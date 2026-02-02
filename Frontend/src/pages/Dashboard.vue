@@ -17,6 +17,9 @@ onMounted(() => {
   // 초기 로드 시 desired_state 가져오기
   store.fetchDesiredStates()
   
+  // 일별 전력량 데이터 로드
+  store.fetchDailyPower(7)
+  
   // 5초마다 desired_state 동기화
   intervalId = window.setInterval(() => {
     store.fetchDesiredStates()
