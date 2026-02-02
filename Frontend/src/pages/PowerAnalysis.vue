@@ -102,6 +102,49 @@ async function fetchAIReport() {
 onMounted(() => {
   fetchAIReport()
 })
+
+// 꺾은선 그래프용 SVG Path 생성
+const linePath = computed(() => {
+  if (hourlyUsage.value.length === 0) return ''
+  
+  const width = 100 // 100% 기준
+  const height = 100 // 100% 기준
+  const padding = 5
+  
+  const max = maxUsage.value
+  const step = (width - padding * 2) / (hourlyUsage.value.length - 1)
+  
+  const points = hourlyUsage.value.map((item, idx) => {
+    const x = padding + idx * step
+    const y = height - padding - ((item.value / max) * (height - padding * 2))
+    return `${x},${y}`
+  })
+  
+  return `M ${points.join(' L ')}`
+})
+
+// 그래프 하단 채우기용 Path
+const areaPath = computed(() => {
+  if (hourlyUsage.value.length === 0) return ''
+  
+  const width = 100
+  const height = 100
+  const padding = 5
+  
+  const max = maxUsage.value
+  const step = (width - padding * 2) / (hourlyUsage.value.length - 1)
+  
+  const points = hourlyUsage.value.map((item, idx) => {
+    const x = padding + idx * step
+    const y = height - padding - ((item.value / max) * (height - padding * 2))
+    return `${x},${y}`
+  })
+  
+  const firstX = padding
+  const lastX = padding + (hourlyUsage.value.length - 1) * step
+  
+  return `M ${firstX},${height - padding} L ${points.join(' L ')} L ${lastX},${height - padding} Z`
+})
 </script>
 
 <template>
@@ -143,27 +186,58 @@ onMounted(() => {
         </span>
       </div>
 
-      <div class="flex items-end gap-3 h-44">
+      <div class="relative h-44 mb-2">
         <div
           v-if="hourlyUsage.length === 0"
           class="flex items-center justify-center w-full h-full text-gray-500 text-sm"
         >
           데이터를 불러오는 중...
         </div>
-        <div
+        <svg v-else viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
+          <!-- 그라데이션 영역 -->
+          <defs>
+            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.3" />
+              <stop offset="100%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.05" />
+            </linearGradient>
+          </defs>
+          
+          <!-- 배경 영역 -->
+          <path :d="areaPath" fill="url(#areaGradient)" />
+          
+          <!-- 선 그래프 -->
+          <path 
+            :d="linePath" 
+            fill="none" 
+            stroke="rgb(59, 130, 246)" 
+            stroke-width="0.8" 
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          
+          <!-- 데이터 포인트 -->
+          <circle
+            v-for="(item, idx) in hourlyUsage"
+            :key="idx"
+            :cx="5 + idx * (90 / (hourlyUsage.length - 1))"
+            :cy="95 - ((item.value / maxUsage) * 90)"
+            r="1.5"
+            fill="rgb(59, 130, 246)"
+            class="hover:r-2 transition-all"
+          />
+        </svg>
+      </div>
+      
+      <!-- X축 레이블 -->
+      <div class="flex justify-between px-2">
+        <span
           v-for="item in hourlyUsage"
           :key="item.hour"
-          class="flex-1 flex flex-col items-center group"
+          class="text-[11px] text-gray-400 text-center"
+          :style="{ width: `${100 / hourlyUsage.length}%` }"
         >
-          <div
-            class="w-full rounded-lg bg-gradient-to-t from-blue-600 to-blue-400 transition-all"
-            :style="{ height: `${(item.value / maxUsage) * 100}%` }"
-          />
-          <span class="text-[11px] text-gray-400 mt-2">{{ item.hour }}시</span>
-          <span class="text-[11px] text-gray-500 opacity-0 group-hover:opacity-100 transition">
-            {{ item.value }} kWh
-          </span>
-        </div>
+          {{ item.hour }}시
+        </span>
       </div>
 
       <div class="mt-5 text-xs text-gray-400" v-if="hourlyUsage.length > 0">
