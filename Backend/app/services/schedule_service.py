@@ -100,7 +100,7 @@ class ScheduleService:
                         await db.commit()
                 except Exception as log_error:
                     logger.error(f"오류 로그 저장 실패: {log_error}")
-                await asyncio.sleep(30)
+                await asyncio.sleep(60)  # 에러 발생 시에도 1분 후 재시도
     
     async def stop(self):
         """스케줄 서비스 중지"""
