@@ -247,7 +247,7 @@ const areaPath = computed(() => {
 
     <!-- ✅ 좌(리포트) / 우(상위 디바이스) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- 왼쪽: AI 분석 리포트 (읽기 쉽게) -->
+      <!-- 왼쪽: AI 분석 리포트 -->
       <div class="lg:col-span-2 bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
         <!-- 헤더 -->
         <div class="flex items-start justify-between gap-4">
@@ -272,7 +272,7 @@ const areaPath = computed(() => {
           </span>
         </div>
 
-        <!-- 숫자 타일 (한눈에) -->
+        <!-- 숫자 타일 -->
         <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div class="rounded-2xl border border-gray-800 bg-gray-900/35 px-4 py-4">
             <div class="text-[11px] text-gray-400 flex items-center gap-2">
@@ -308,6 +308,32 @@ const areaPath = computed(() => {
           </div>
         </div>
 
+
+        <!-- ✅ AI 코멘트 (애플 느낌: 유리질감 + 얇은 라인 + 미니멀) -->
+        <div
+          class="mt-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md
+                 shadow-[0_10px_30px_rgba(0,0,0,0.25)] px-4 py-4"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span
+                class="w-1.5 h-1.5 rounded-full"
+                :class="isRisky ? 'bg-amber-300' : 'bg-emerald-300'"
+              />
+              <div class="text-xs font-semibold text-white/90 tracking-tight">
+                AI 코멘트
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span
+                class="text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-black/20 text-white/70"
+              >
+                {{ report.state_now.state }}
+              </span>
+              <span class="text-[11px] px-2 py-0.5 rounded-full border" :class="statusBadge.cls">
+                {{ statusBadge.text }}
+              </span>
         <!-- AI 코멘트 (긴 문장은 여기에 모아 가독성 확보) -->
         <div class="mt-4 rounded-2xl border border-gray-800 bg-gray-900/30 p-4">
           <div class="flex items-start gap-3">
@@ -320,14 +346,28 @@ const areaPath = computed(() => {
               <p class="text-sm text-gray-200 mt-1 leading-relaxed break-words">
                 {{ report.openai_analysis?.summary || '분석 데이터를 불러오는 중입니다...' }}
               </p>
+
             </div>
           </div>
+
+          <div class="mt-3 h-px bg-white/10"></div>
+
+          <p class="mt-3 text-[14px] leading-relaxed text-white/85 break-words">
+            {{ summary }}
+          </p>
         </div>
+
+
+        <!-- 권장 조치 (그대로) -->
+        <div class="mt-4">
+          <div class="text-xs text-gray-400">권장 조치</div>
+          <div class="mt-2 space-y-2">
 
         <!-- 권장사항 (OpenAI 분석) -->
         <div v-if="report.openai_analysis?.recommendations?.length" class="mt-4">
           <div class="text-xs text-gray-400 mb-2">AI 권장사항</div>
           <div class="space-y-2">
+
             <div
               v-for="(rec, idx) in report.openai_analysis.recommendations"
               :key="idx"
@@ -342,7 +382,7 @@ const areaPath = computed(() => {
         </div>
       </div>
 
-      <!-- 오른쪽: 상위 전력 소비 디바이스 (기존 내용 유지, 위치만 오른쪽) -->
+      <!-- 오른쪽: 상위 전력 소비 디바이스 (그대로) -->
       <div class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
         <h3 class="text-white font-semibold mb-6 flex items-center gap-2">
           <PlugZap class="w-5 h-5 text-yellow-400" />
@@ -374,7 +414,6 @@ const areaPath = computed(() => {
               </span>
             </div>
 
-            <!-- usage bar -->
             <div class="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
               <div
                 class="h-full rounded-full"
