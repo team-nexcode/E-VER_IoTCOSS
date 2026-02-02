@@ -369,4 +369,3 @@ const recommendations = computed(() => {
       </div>
     </div>
   </div>
-</template>
