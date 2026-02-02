@@ -36,6 +36,11 @@ const title = computed(() =>
   selectedDevice.value ? `${selectedDevice.value.name} - 일별 전력량` : '일별 총 전력량'
 )
 
+// 전체 사용량의 최댓값으로 y축 고정 (모든 그래프에서 동일한 스케일 사용)
+const maxPowerValue = computed(() => {
+  return Math.max(...dailyPowerTotal.value.map(d => d.power), 0)
+})
+
 const chartOption = computed(() => ({
   grid: {
     top: 8,
@@ -64,6 +69,7 @@ const chartOption = computed(() => ({
   },
   yAxis: {
     type: 'value' as const,
+    max: maxPowerValue.value > 0 ? Math.ceil(maxPowerValue.value * 1.1) : undefined,  // 최대값의 110%로 고정
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: { color: '#64748b', fontSize: 10 },

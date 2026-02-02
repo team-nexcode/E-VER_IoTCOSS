@@ -13,3 +13,4 @@ python-dotenv
 websockets
 httpx
 python-multipart
+openai
