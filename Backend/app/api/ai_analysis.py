@@ -462,3 +462,150 @@ async def get_full_analysis_report(db: AsyncSession = Depends(get_db)):
         "ai_analysis": analysis,
         "generated_at": datetime.now().isoformat()
     }
+
+
+@router.get("/analyze-ai-server", summary="AI 서버 리포트를 OpenAI로 분석")
+async def analyze_ai_server_report(hours: int = 24):
+    """
+    외부 AI 서버에서 모든 디바이스의 리포트를 받아 OpenAI로 종합 분석을 생성합니다.
+    """
+    try:
+        ai_server_url = settings.AI_REPORT_URL or "http://iotcoss.nexcode.kr:8001"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # 1. 모든 디바이스 목록 가져오기
+            devices_response = await client.get(f"{ai_server_url}/devices")
+            devices_response.raise_for_status()
+            devices_data = devices_response.json()
+            device_list = devices_data.get("items", [])
+            
+            if not device_list:
+                raise HTTPException(status_code=404, detail="디바이스를 찾을 수 없습니다")
+            
+            # 2. 각 디바이스별로 리포트 가져오기
+            all_reports = []
+            total_anomalies = 0
+            total_standby_wh = 0
+            
+            for device in device_list:
+                device_mac = device["device_mac"]
+                device_name = device.get("device_name", "Unknown")
+                
+                try:
+                    report_response = await client.get(
+                        f"{ai_server_url}/devices/{device_mac}/report",
+                        params={"hours": hours, "voltage": 220}
+                    )
+                    report_response.raise_for_status()
+                    report = report_response.json()
+                    
+                    all_reports.append({
+                        "device_mac": device_mac,
+                        "device_name": device_name,
+                        "anomaly_count": report["anomalies"]["count"],
+                        "standby_wh": report["waste"]["standby_wh"],
+                        "state": report["state_now"]["state"],
+                        "summary": report.get("summary", "")
+                    })
+                    
+                    total_anomalies += report["anomalies"]["count"]
+                    total_standby_wh += report["waste"]["standby_wh"]
+                    
+                except Exception as e:
+                    logger.warning(f"디바이스 {device_name}({device_mac}) 리포트 실패: {e}")
+                    continue
+        
+        if not all_reports:
+            raise HTTPException(status_code=404, detail="유효한 리포트를 가져올 수 없습니다")
+        
+        # 3. 종합 데이터를 AIReportData 형식으로 변환
+        all_anomalies = []
+        all_standby_devices = []
+        
+        for report_item in all_reports:
+            # 이상치가 있는 디바이스만 추가
+            if report_item["anomaly_count"] > 0:
+                all_anomalies.append(AnomalyDevice(
+                    device_mac=report_item["device_mac"],
+                    device_name=report_item["device_name"],
+                    timestamp=datetime.now(),
+                    current_amp=0,
+                    expected_amp=0,
+                    deviation_percent=0,
+                    severity="medium" if report_item["anomaly_count"] >= 10 else "low"
+                ))
+            
+            # 대기전력이 있는 디바이스 추가
+            if report_item["standby_wh"] > 0:
+                avg_standby_watts = report_item["standby_wh"] / hours
+                daily_waste_kwh = round((report_item["standby_wh"] * 24 / hours) / 1000, 3)
+                monthly_standby_kwh = round((report_item["standby_wh"] / hours) * 24 * 30 / 1000, 2)
+                monthly_cost = int(monthly_standby_kwh * 300)
+                
+                all_standby_devices.append(StandbyPowerDevice(
+                    device_mac=report_item["device_mac"],
+                    device_name=report_item["device_name"],
+                    avg_standby_power_watts=avg_standby_watts,
+                    daily_waste_kwh=daily_waste_kwh,
+                    monthly_waste_kwh=monthly_standby_kwh,
+                    monthly_waste_cost=monthly_cost
+                ))
+        
+        # 전체 통계
+        total_monthly_kwh = round((total_standby_wh / hours) * 24 * 30 / 1000, 2)
+        total_monthly_cost = int(total_monthly_kwh * 300)
+        
+        report_data = AIReportData(
+            anomalies=all_anomalies,
+            standby_power_devices=all_standby_devices,
+            total_anomaly_count=total_anomalies,
+            total_standby_waste_kwh=total_monthly_kwh,
+            total_standby_waste_cost=total_monthly_cost
+        )
+        
+        # 4. 기존 프롬프트 엔지니어링 함수 사용
+        if not settings.OPENAI_API_KEY or not AsyncOpenAI:
+            return {
+                "device_count": len(all_reports),
+                "hours": hours,
+                "devices": all_reports,
+                "total_anomaly_count": total_anomalies,
+                "total_standby_wh": total_standby_wh,
+                "total_monthly_kwh": total_monthly_kwh,
+                "total_monthly_cost": total_monthly_cost,
+                "openai_available": False
+            }
+        
+        analysis = await analyze_with_openai(report_data)
+        
+        return {
+            "device_count": len(all_reports),
+            "hours": hours,
+            "devices": all_reports,
+            "total_anomaly_count": total_anomalies,
+            "total_standby_wh": total_standby_wh,
+            "total_monthly_kwh": total_monthly_kwh,
+            "total_monthly_cost": total_monthly_cost,
+            "openai_analysis": {
+                "summary": analysis.summary,
+                "recommendations": analysis.recommendations,
+                "anomaly_insights": analysis.anomaly_insights,
+                "standby_insights": analysis.standby_insights,
+                "estimated_savings": analysis.estimated_savings
+            },
+            "openai_available": True,
+            "generated_at": datetime.now().isoformat()
+        }
+    
+    except httpx.HTTPError as e:
+        logger.error(f"AI 서버 연결 실패: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI 서버에 연결할 수 없습니다: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"분석 중 오류 발생: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"분석 중 오류가 발생했습니다: {str(e)}"
+        )

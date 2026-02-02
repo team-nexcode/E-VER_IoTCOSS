@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 import {
   BarChart3,
   PlugZap,
@@ -33,33 +34,80 @@ const topDevices = [
 const maxUsage = Math.max(...hourlyUsage.map(h => h.value))
 
 /**
- * 🔹 리포트 입력(백엔드 연결용)
- * - 기존 기능 영향 없게: report prop이 있으면 사용, 없으면 더미 표시
+ * 🔹 AI 리포트 데이터 (실시간)
  */
 type AnalysisReport = {
   hours: number
-  waste: { standby_wh: number }
-  anomalies: { count: number }
-  state_now: { state: string }
+  device_count: number
+  total_anomaly_count: number
+  total_standby_wh: number
+  total_monthly_kwh: number
+  total_monthly_cost: number
+  devices: Array<{
+    device_name: string
+    anomaly_count: number
+    standby_wh: number
+    state: string
+  }>
+  openai_analysis?: {
+    summary: string
+    recommendations: string[]
+    anomaly_insights: string
+    standby_insights: string
+    estimated_savings: string
+  }
 }
 
-const props = defineProps<{
-  report?: AnalysisReport
-}>()
-
-const report = computed<AnalysisReport>(() => {
-  return (
-    props.report ?? {
-      hours: 6,
-      waste: { standby_wh: 58.32 },
-      anomalies: { count: 4 },
-      state_now: { state: 'ON' },
-    }
-  )
+const report = ref<AnalysisReport>({
+  hours: 24,
+  device_count: 0,
+  total_anomaly_count: 0,
+  total_standby_wh: 0,
+  total_monthly_kwh: 0,
+  total_monthly_cost: 0,
+  devices: []
 })
 
-const standbyHigh = computed(() => report.value.waste.standby_wh >= 50)
-const anomaliesHigh = computed(() => report.value.anomalies.count >= 3)
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+// AI 리포트 가져오기 (모든 기기 종합 분석)
+async function fetchAIReport() {
+  loading.value = true
+  error.value = null
+  
+  try {
+    // 백엔드를 통해 모든 기기의 AI 서버 + OpenAI 분석 받기
+    const response = await axios.get('http://iotcoss.nexcode.kr:8000/api/ai/analyze-ai-server', {
+      params: { hours: 24 }
+    })
+    
+    const data = response.data
+    
+    report.value = {
+      hours: data.hours,
+      device_count: data.device_count,
+      total_anomaly_count: data.total_anomaly_count,
+      total_standby_wh: data.total_standby_wh,
+      total_monthly_kwh: data.total_monthly_kwh,
+      total_monthly_cost: data.total_monthly_cost,
+      devices: data.devices,
+      openai_analysis: data.openai_available ? data.openai_analysis : undefined
+    }
+  } catch (e: any) {
+    console.error('AI 리포트 로드 실패:', e)
+    error.value = e.response?.data?.detail || e.message || '리포트를 불러올 수 없습니다'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchAIReport()
+})
+
+const standbyHigh = computed(() => report.value.total_standby_wh >= 50)
+const anomaliesHigh = computed(() => report.value.total_anomaly_count >= 3)
 const isRisky = computed(() => standbyHigh.value || anomaliesHigh.value)
 
 const statusBadge = computed(() => {
@@ -68,19 +116,25 @@ const statusBadge = computed(() => {
     : { text: '정상', cls: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20' }
 })
 
-// ✅ 사용자 스크립트 기반 summary
+// ✅ OpenAI 구조화된 분석 우선, 없으면 기본 로직
 const summary = computed(() => {
+  // OpenAI 구조화된 분석이 있으면 summary 사용
+  if (report.value.openai_analysis?.summary) {
+    return report.value.openai_analysis.summary
+  }
+  
+  // 없으면 기본 로직으로 생성
   const hours = report.value.hours
-  const waste = report.value.waste
-  const anomalies = report.value.anomalies
-  const state_now = report.value.state_now
+  const standby = report.value.total_standby_wh
+  const anomalies = report.value.total_anomaly_count
+  const devices = report.value.device_count
 
   let s =
-    `최근 ${hours}시간 기준 standby 추정 ${waste.standby_wh.toFixed(2)}Wh, ` +
-    `이상치 ${anomalies.count}건, 현재 상태 ${state_now.state}.`
+    `최근 ${hours}시간 기준 ${devices}개 기기에서 standby 추정 ${standby.toFixed(2)}Wh, ` +
+    `이상치 ${anomalies}건 감지되었습니다.`
 
-  if (waste.standby_wh >= 50) s += ' standby 낭비가 큰 편이라 미사용 시 차단을 권장.'
-  if (anomalies.count >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검 권장.'
+  if (standby >= 50) s += ' 대기전력 낭비가 큰 편이라 미사용 시 차단을 권장합니다.'
+  if (anomalies >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검을 권장합니다.'
   return s
 })
 
@@ -107,7 +161,7 @@ const recommendations = computed(() => {
       title: '이상치 원인 점검 필요',
       desc: '센서 값 튐/부하 변동/릴레이 접점 상태를 우선 확인해 주세요.',
     })
-  } else if (report.value.anomalies.count > 0) {
+  } else if (report.value.total_anomaly_count > 0) {
     list.push({
       tone: 'ok',
       title: '이상치 소량(관찰)',
@@ -133,6 +187,21 @@ const recommendations = computed(() => {
       <p class="text-sm text-gray-400 mt-1">
         시간대별 사용 패턴과 주요 전력 소비 기기를 분석합니다
       </p>
+    </div>
+
+    <!-- 로딩/에러 상태 -->
+    <div v-if="loading" class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
+      <div class="flex items-center justify-center gap-3">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+        <span class="text-gray-400">AI 분석 리포트 로딩 중...</span>
+      </div>
+    </div>
+
+    <div v-if="error" class="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
+      <div class="flex items-center gap-2">
+        <AlertTriangle class="w-5 h-5 text-red-400" />
+        <span class="text-red-200">{{ error }}</span>
+      </div>
     </div>
 
     <!-- 시간대별 평균 전력 사용량 -->
@@ -185,16 +254,13 @@ const recommendations = computed(() => {
               AI분석 리포트
             </h3>
             <p class="text-xs text-gray-400 mt-1">
-              최근 <span class="text-gray-200 font-semibold">{{ report.hours }}</span>시간 기준 요약 및 권장 조치
+              최근 <span class="text-gray-200 font-semibold">{{ report.hours }}</span>시간 기준 {{ report.device_count }}개 기기 종합 분석
             </p>
           </div>
 
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-xs px-2.5 py-1 rounded-full border" :class="statusBadge.cls">
               {{ statusBadge.text }}
-            </span>
-            <span class="text-xs px-2.5 py-1 rounded-full border bg-blue-500/10 text-blue-200 border-blue-500/20">
-              상태 {{ report.state_now.state }}
             </span>
           </div>
         </div>
@@ -205,13 +271,13 @@ const recommendations = computed(() => {
             class="text-[11px] px-2.5 py-1 rounded-full border"
             :class="standbyHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
           >
-            standby {{ report.waste.standby_wh.toFixed(2) }}Wh (기준 50Wh)
+            standby {{ report.total_standby_wh.toFixed(2) }}Wh (기준 50Wh)
           </span>
           <span
             class="text-[11px] px-2.5 py-1 rounded-full border"
             :class="anomaliesHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
           >
-            이상치 {{ report.anomalies.count }}건 (기준 3건)
+            이상치 {{ report.total_anomaly_count }}건 (기준 3건)
           </span>
           <span
             v-if="!isRisky"
@@ -232,7 +298,7 @@ const recommendations = computed(() => {
               standby 추정
             </div>
             <div class="mt-2 text-2xl font-bold text-white tabular-nums">
-              {{ report.waste.standby_wh.toFixed(2) }}
+              {{ report.total_standby_wh.toFixed(2) }}
               <span class="text-xs font-medium text-gray-400 ml-1">Wh</span>
             </div>
             <div class="mt-1 text-[11px] text-gray-500">임계 50Wh 이상 주의</div>
@@ -247,7 +313,7 @@ const recommendations = computed(() => {
               이상치
             </div>
             <div class="mt-2 text-2xl font-bold text-white tabular-nums">
-              {{ report.anomalies.count }}
+              {{ report.total_anomaly_count }}
               <span class="text-xs font-medium text-gray-400 ml-1">건</span>
             </div>
             <div class="mt-1 text-[11px] text-gray-500">임계 3건 이상 점검 권장</div>
@@ -369,3 +435,4 @@ const recommendations = computed(() => {
       </div>
     </div>
   </div>
+</template>
