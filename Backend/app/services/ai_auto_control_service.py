@@ -89,14 +89,14 @@ async def run_ai_auto_control_cycle():
             logger.error(f"[AI_CONTROL] 사이클 실행 중 오류: {e}")
 
 
-async def start_ai_auto_control_service(interval_minutes: int = 60):
+async def start_ai_auto_control_service(interval_seconds: int = 600):
     """
     AI 자동 제어 서비스 시작
     
     Args:
-        interval_minutes: 실행 주기 (분 단위, 기본 60분 = 1시간)
+        interval_seconds: 실행 주기 (초 단위, 기본 600초 = 10분)
     """
-    logger.info(f"🤖 AI 자동 제어 서비스 시작 (주기: {interval_minutes}분)")
+    logger.info(f"🤖 AI 자동 제어 서비스 시작 (주기: {interval_seconds}초)")
     
     while True:
         try:
@@ -105,7 +105,7 @@ async def start_ai_auto_control_service(interval_minutes: int = 60):
             logger.error(f"[AI_CONTROL] 서비스 오류: {e}")
         
         # 다음 실행까지 대기
-        await asyncio.sleep(interval_minutes * 60)
+        await asyncio.sleep(interval_seconds)
 
 
 # 서비스 직접 실행용
@@ -116,6 +116,6 @@ if __name__ == "__main__":
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
     
-    interval = int(sys.argv[1]) if len(sys.argv) > 1 else 60
+    interval = int(sys.argv[1]) if len(sys.argv) > 1 else 600
     
     asyncio.run(start_ai_auto_control_service(interval))

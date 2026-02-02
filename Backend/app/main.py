@@ -238,7 +238,7 @@ async def lifespan(app: FastAPI):
     logger.info("스케줄 서비스 시작")
 
     # AI 자동 제어 서비스 시작 (60분 주기)
-    ai_control_task = asyncio.create_task(start_ai_auto_control_service(interval_minutes=60))
+    ai_control_task = asyncio.create_task(start_ai_auto_control_service(interval_seconds=10))
     logger.info("AI 자동 제어 서비스 시작 (60분 주기)")
 
     yield
