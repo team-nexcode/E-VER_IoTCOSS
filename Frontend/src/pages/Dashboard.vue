@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { BatteryCharging, Clock, Zap, TrendingDown, Banknote, Activity } from 'lucide-vue-next'
 import StatusCard from '@/components/Dashboard/StatusCard.vue'
 import FloorPlan from '@/components/Dashboard/FloorPlan.vue'
@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 
 const selectedDeviceId = ref<number | null>(null)
 const store = useDeviceStore()
-const { powerSummary } = storeToRefs(store)
+const { powerSummary, devices } = storeToRefs(store)
 
 let intervalId: number | null = null
 
@@ -29,6 +29,19 @@ onMounted(() => {
 onUnmounted(() => {
   if (intervalId) {
     clearInterval(intervalId)
+  }
+})
+
+// 디바이스 선택 시 해당 디바이스의 일별 전력량 로드
+watch(selectedDeviceId, (newId) => {
+  if (newId) {
+    const device = devices.value.find(d => d.id === newId)
+    if (device) {
+      store.fetchDailyPower(7, device.deviceMac)
+    }
+  } else {
+    // 선택 해제 시 전체 데이터 로드
+    store.fetchDailyPower(7)
   }
 })
 </script>
