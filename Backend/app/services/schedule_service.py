@@ -85,12 +85,12 @@ class ScheduleService:
                 await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"스케줄 체크 중 오류: {e}", exc_info=True)
-                # 오류도 SystemLog에 기록
+                # 오류를 SystemLog에 기록 (새 세션 사용)
                 try:
                     async with get_db_session() as db:
                         error_log = SystemLog(
                             timestamp=get_naive_kst_now(),
-                            type="ERROR",
+                            type="SYSTEM",
                             level="error",
                             source="Schedule",
                             message=f"스케줄 체크 중 오류: {str(e)}",
@@ -98,8 +98,8 @@ class ScheduleService:
                         )
                         db.add(error_log)
                         await db.commit()
-                except:
-                    pass  # DB 저장 실패해도 계속 진행
+                except Exception as log_error:
+                    logger.error(f"오류 로그 저장 실패: {log_error}")
                 await asyncio.sleep(30)
     
     async def stop(self):
@@ -217,7 +217,7 @@ class ScheduleService:
                     db.add(exec_log)
                     await db.commit()
                     
-                    await self._execute_power_control(schedule.device_mac, "on", db)
+                    await self._execute_power_control(schedule.device_mac, "on")
                 
                 # end_time이 23:59:59가 아닐 때만 체크 (OFF 스케줄)
                 elif end_time_original != dt_time(23, 59, 59) and current_time == end_time:
@@ -234,42 +234,44 @@ class ScheduleService:
                     db.add(exec_log)
                     await db.commit()
                     
-                    await self._execute_power_control(schedule.device_mac, "off", db)
+                    await self._execute_power_control(schedule.device_mac, "off")
     
-    async def _execute_power_control(self, device_mac: str, power_state: str, db: AsyncSession):
+    async def _execute_power_control(self, device_mac: str, power_state: str):
         """전원 제어 실행"""
         try:
             logger.info(f"[전원 제어 시작] MAC: {device_mac}, 상태: {power_state}")
             
-            # device_switch 테이블 업데이트
-            result = await db.execute(
-                select(DeviceSwitch).where(DeviceSwitch.device_mac == device_mac)
-            )
-            switch = result.scalar_one_or_none()
-            
-            if switch:
-                logger.info(f"  - 기존 스위치 발견, 업데이트: {switch.desired_state} → {power_state}")
-                switch.desired_state = power_state
-                switch.updated_at = datetime.now(KST)
-            else:
-                logger.info(f"  - 새 스위치 생성")
-                new_switch = DeviceSwitch(
-                    device_mac=device_mac,
-                    desired_state=power_state,
+            # 새로운 DB 세션 생성
+            async with get_db_session() as db:
+                # device_switch 테이블 업데이트
+                result = await db.execute(
+                    select(DeviceSwitch).where(DeviceSwitch.device_mac == device_mac)
                 )
-                db.add(new_switch)
+                switch = result.scalar_one_or_none()
+                
+                if switch:
+                    logger.info(f"  - 기존 스위치 발견, 업데이트: {switch.desired_state} → {power_state}")
+                    switch.desired_state = power_state
+                    switch.updated_at = datetime.now(KST)
+                else:
+                    logger.info(f"  - 새 스위치 생성")
+                    new_switch = DeviceSwitch(
+                        device_mac=device_mac,
+                        desired_state=power_state,
+                    )
+                    db.add(new_switch)
+                
+                await db.commit()
+                logger.info(f"  - DB 커밋 완료")
+                
+                # 모든 디바이스의 제어 상태 수집
+                result = await db.execute(select(DeviceSwitch))
+                all_switches = result.scalars().all()
+                
+                device_control_map = {s.device_mac: s.desired_state for s in all_switches}
+                logger.info(f"  - 전체 디바이스 제어 맵: {device_control_map}")
             
-            await db.commit()
-            logger.info(f"  - DB 커밋 완료")
-            
-            # 모든 디바이스의 제어 상태 수집
-            result = await db.execute(select(DeviceSwitch))
-            all_switches = result.scalars().all()
-            
-            device_control_map = {s.device_mac: s.desired_state for s in all_switches}
-            logger.info(f"  - 전체 디바이스 제어 맵: {device_control_map}")
-            
-            # Mobius로 전송
+            # Mobius로 전송 (DB 세션 밖에서)
             payload = {"m2m:cin": {"con": device_control_map}}
             logger.info(f"  - Mobius 전송 시작: ae_nexcode/switch")
             response = await self.mobius_service.create_cin("ae_nexcode", "switch", payload)
@@ -283,7 +285,6 @@ class ScheduleService:
         
         except Exception as e:
             logger.error(f"스케줄 전원 제어 중 오류: {e}", exc_info=True)
-            await db.rollback()
 
 
 # 전역 스케줄 서비스 인스턴스
