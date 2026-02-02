@@ -537,14 +537,16 @@ async def analyze_ai_server_report(hours: int = 24):
             
             # 대기전력이 있는 디바이스 추가
             if report_item["standby_wh"] > 0:
+                avg_standby_watts = report_item["standby_wh"] / hours
+                daily_waste_kwh = round((report_item["standby_wh"] * 24 / hours) / 1000, 3)
                 monthly_standby_kwh = round((report_item["standby_wh"] / hours) * 24 * 30 / 1000, 2)
                 monthly_cost = int(monthly_standby_kwh * 300)
                 
                 all_standby_devices.append(StandbyPowerDevice(
                     device_mac=report_item["device_mac"],
                     device_name=report_item["device_name"],
-                    avg_standby_amp=report_item["standby_wh"] / (hours * 220),
-                    daily_waste_wh=report_item["standby_wh"] * 24 / hours,
+                    avg_standby_power_watts=avg_standby_watts,
+                    daily_waste_kwh=daily_waste_kwh,
                     monthly_waste_kwh=monthly_standby_kwh,
                     monthly_waste_cost=monthly_cost
                 ))
