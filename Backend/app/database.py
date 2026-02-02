@@ -25,6 +25,9 @@ async_session = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# 별칭 (하위 호환성)
+SessionLocal = async_session
+
 
 class Base(DeclarativeBase):
     """모든 모델의 기본 클래스"""

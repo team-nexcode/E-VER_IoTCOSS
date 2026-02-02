@@ -11,7 +11,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import SessionLocal
+from app.database import async_session
 from app.models.device_mac import DeviceMac
 from app.config import get_settings
 
@@ -48,7 +48,7 @@ async def run_ai_auto_control_cycle():
     # devices.py의 control_device_power를 사용하기 위해 import
     from app.api.devices import PowerControlRequest, control_device_power
     
-    async with SessionLocal() as db:
+    async with async_session() as db:
         try:
             # 1. AI 자동 제어 활성화된 디바이스 조회
             devices = await get_ai_enabled_devices(db)

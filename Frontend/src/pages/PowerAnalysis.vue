@@ -10,9 +10,6 @@ import {
   Activity,
   CheckCircle2,
   Sparkles,
-  Power,
-  Clock,
-  Zap,
 } from 'lucide-vue-next'
 
 // 🔹 시간대별 평균 전력 사용량 (kWh) - 실시간 데이터
@@ -20,40 +17,6 @@ const hourlyUsage = ref<Array<{ hour: string; value: number }>>([])
 
 // 🔹 상위 3개 전력 소비 디바이스 - 실시간 데이터
 const topDevices = ref<Array<{ name: string; usage: number }>>([])
-
-// 🔹 스마트 대기전력 제어 데이터
-type SmartSchedule = {
-  device_mac: string
-  device_name: string
-  current_hour: number
-  recommendations: Array<{
-    hour: number
-    on_rate: number
-    action: 'ON' | 'OFF' | 'STANDBY'
-    reason: string
-    is_current: boolean
-  }>
-  summary: string
-}
-
-type SmartControlData = {
-  total_devices: number
-  action_summary: {
-    ON: number
-    OFF: number
-    STANDBY: number
-  }
-  schedules: SmartSchedule[]
-}
-
-const smartControl = ref<SmartControlData>({
-  total_devices: 0,
-  action_summary: { ON: 0, OFF: 0, STANDBY: 0 },
-  schedules: []
-})
-
-const smartControlLoading = ref(false)
-const smartControlError = ref<string | null>(null)
 
 const maxUsage = computed(() => Math.max(...hourlyUsage.value.map(h => h.value), 1))
 
@@ -136,28 +99,8 @@ async function fetchAIReport() {
   }
 }
 
-// 스마트 대기전력 제어 데이터 가져오기
-async function fetchSmartControl() {
-  smartControlLoading.value = true
-  smartControlError.value = null
-  
-  try {
-    const response = await axios.get('http://iotcoss.nexcode.kr:8000/api/ai/smart-standby-control', {
-      params: { lookahead_hours: 2 }
-    })
-    
-    smartControl.value = response.data
-  } catch (e: any) {
-    console.error('스마트 제어 데이터 로드 실패:', e)
-    smartControlError.value = e.response?.data?.detail || e.message || '데이터를 불러올 수 없습니다'
-  } finally {
-    smartControlLoading.value = false
-  }
-}
-
 onMounted(() => {
   fetchAIReport()
-  fetchSmartControl()
 })
 
 // 호버된 데이터 포인트
