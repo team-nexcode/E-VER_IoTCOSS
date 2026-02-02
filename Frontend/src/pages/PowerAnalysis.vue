@@ -112,7 +112,7 @@ function getChartX(hour: number): number {
 }
 
 function getChartY(value: number): number {
-  const max = Math.max(maxUsage.value, 0.1)
+  const max = maxUsage.value * 1.1 // 최댓값에 10% 여유 공간
   return 95 - (value / max) * 90 // 값을 5%~95% 범위로 매핑
 }
 </script>
