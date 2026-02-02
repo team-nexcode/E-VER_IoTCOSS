@@ -462,3 +462,111 @@ async def get_full_analysis_report(db: AsyncSession = Depends(get_db)):
         "ai_analysis": analysis,
         "generated_at": datetime.now().isoformat()
     }
+
+
+@router.get("/analyze-ai-server", summary="AI 서버 리포트를 OpenAI로 분석")
+async def analyze_ai_server_report(
+    device_mac: str = "48:27:E2:E0:53:DC",
+    hours: int = 24
+):
+    """
+    외부 AI 서버에서 리포트를 받아 OpenAI로 사용자 친화적인 분석을 생성합니다.
+    """
+    try:
+        # 1. AI 서버에서 리포트 가져오기
+        ai_server_url = settings.AI_REPORT_URL or "http://iotcoss.nexcode.kr:8001"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"{ai_server_url}/devices/{device_mac}/report",
+                params={"hours": hours, "voltage": 220}
+            )
+            response.raise_for_status()
+            ai_report = response.json()
+        
+        # 2. AI 서버 리포트를 AIReportData 형식으로 변환
+        anomalies = []
+        for item in ai_report["anomalies"]["items"][:10]:
+            anomalies.append(AnomalyDevice(
+                device_mac=device_mac,
+                device_name=ai_report["state_now"].get("device_name", "Unknown"),
+                timestamp=datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00")),
+                current_amp=item["energy_amp"],
+                expected_amp=item.get("expected_amp", 0),
+                deviation_percent=item.get("z", 0) * 10,  # z-score를 percent로 근사
+                severity="high" if item["z"] > 6 else "medium" if item["z"] > 4 else "low"
+            ))
+        
+        standby_wh = ai_report["waste"]["standby_wh"]
+        monthly_standby_kwh = round((standby_wh / hours) * 24 * 30 / 1000, 2)
+        monthly_cost = int(monthly_standby_kwh * 300)
+        
+        standby_devices = [StandbyPowerDevice(
+            device_mac=device_mac,
+            device_name=ai_report["state_now"].get("device_name", "Unknown"),
+            avg_standby_amp=standby_wh / (hours * 220),  # Wh to Amp 근사
+            daily_waste_wh=standby_wh * 24 / hours,
+            monthly_waste_kwh=monthly_standby_kwh,
+            monthly_waste_cost=monthly_cost
+        )]
+        
+        report_data = AIReportData(
+            anomalies=anomalies,
+            standby_power_devices=standby_devices,
+            total_anomaly_count=ai_report["anomalies"]["count"],
+            total_standby_waste_kwh=monthly_standby_kwh,
+            total_standby_waste_cost=monthly_cost
+        )
+        
+        # 3. 기존 프롬프트 엔지니어링 함수 사용
+        if not settings.OPENAI_API_KEY or not AsyncOpenAI:
+            return {
+                "device_mac": device_mac,
+                "hours": hours,
+                "ai_server_summary": ai_report.get("summary", ""),
+                "openai_available": False,
+                "basic_analysis": {
+                    "standby_wh": standby_wh,
+                    "monthly_standby_kwh": monthly_standby_kwh,
+                    "monthly_cost": monthly_cost,
+                    "anomaly_count": ai_report["anomalies"]["count"],
+                    "state": ai_report["state_now"]["state"]
+                }
+            }
+        
+        analysis = await analyze_with_openai(report_data)
+        
+        return {
+            "device_mac": device_mac,
+            "hours": hours,
+            "ai_server_data": {
+                "standby_wh": standby_wh,
+                "monthly_standby_kwh": monthly_standby_kwh,
+                "monthly_cost": monthly_cost,
+                "anomaly_count": ai_report["anomalies"]["count"],
+                "state": ai_report["state_now"]["state"],
+                "basic_summary": ai_report.get("summary", "")
+            },
+            "openai_analysis": {
+                "summary": analysis.summary,
+                "recommendations": analysis.recommendations,
+                "anomaly_insights": analysis.anomaly_insights,
+                "standby_insights": analysis.standby_insights,
+                "estimated_savings": analysis.estimated_savings
+            },
+            "openai_available": True,
+            "generated_at": datetime.now().isoformat()
+        }
+    
+    except httpx.HTTPError as e:
+        logger.error(f"AI 서버 연결 실패: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI 서버에 연결할 수 없습니다: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"분석 중 오류 발생: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"분석 중 오류가 발생했습니다: {str(e)}"
+        )

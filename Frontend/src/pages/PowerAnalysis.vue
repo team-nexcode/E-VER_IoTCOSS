@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 import {
   BarChart3,
   PlugZap,
@@ -32,36 +33,103 @@ const topDevices = [
 const maxUsage = Math.max(...hourlyUsage.map((h) => h.value))
 
 /**
- * 🔹 자동 리포트 입력(백엔드 연결용)
- * - 기존 기능 영향 없게: props로 들어오면 사용, 없으면 더미로 표시
+ * 🔹 AI 리포트 데이터 (실시간)
  */
 type AnalysisReport = {
   hours: number
   waste: { standby_wh: number }
   anomalies: { count: number }
   state_now: { state: string }
+  summary?: string
+  openai_analysis?: {
+    summary: string
+    recommendations: string[]
+    anomaly_insights: string
+    standby_insights: string
+    estimated_savings: string
+  }
+  monthly_cost?: number
+  monthly_kwh?: number
 }
 
-const props = defineProps<{
-  report?: AnalysisReport
-}>()
+const report = ref<AnalysisReport>({
+  hours: 24,
+  waste: { standby_wh: 0 },
+  anomalies: { count: 0 },
+  state_now: { state: 'IDLE' },
+})
 
-const report = computed<AnalysisReport>(() => {
-  return (
-    props.report ?? {
-      hours: 6,
-      waste: { standby_wh: 58.32 },
-      anomalies: { count: 4 },
-      state_now: { state: 'ON' },
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+// AI 리포트 가져오기 (OpenAI 분석 포함)
+async function fetchAIReport() {
+  loading.value = true
+  error.value = null
+  
+  try {
+    // 백엔드를 통해 AI 서버 + OpenAI 분석 받기
+    const response = await axios.get('http://iotcoss.nexcode.kr:8000/api/ai/analyze-ai-server', {
+      params: {
+        device_mac: '48:27:E2:E0:53:DC',
+        hours: 24
+      }
+    })
+    
+    const data = response.data
+    
+    if (data.openai_available) {
+      // OpenAI 분석 성공 - 구조화된 데이터 사용
+      report.value = {
+        hours: data.hours,
+        waste: { standby_wh: data.ai_server_data.standby_wh },
+        anomalies: { count: data.ai_server_data.anomaly_count },
+        state_now: { state: data.ai_server_data.state },
+        summary: data.ai_server_data.basic_summary,
+        openai_analysis: data.openai_analysis,
+        monthly_cost: data.ai_server_data.monthly_cost,
+        monthly_kwh: data.ai_server_data.monthly_standby_kwh
+      }
+    } else {
+      // OpenAI 실패, 기본 데이터만 사용
+      report.value = {
+        hours: data.hours,
+        waste: { standby_wh: data.basic_analysis.standby_wh },
+        anomalies: { count: data.basic_analysis.anomaly_count },
+        state_now: { state: data.basic_analysis.state },
+        summary: data.ai_server_summary,
+        monthly_cost: data.basic_analysis.monthly_cost,
+        monthly_kwh: data.basic_analysis.monthly_standby_kwh
+      }
     }
-  )
+  } catch (e: any) {
+    console.error('AI 리포트 로드 실패:', e)
+    error.value = e.response?.data?.detail || e.message || '리포트를 불러올 수 없습니다'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchAIReport()
 })
 
 const standbyHigh = computed(() => report.value.waste.standby_wh >= 50)
 const anomaliesHigh = computed(() => report.value.anomalies.count >= 3)
 
-// ✅ 사용자 스크립트 기반 summary
+// ✅ OpenAI 구조화된 분석 우선, 없으면 AI 서버 summary, 그것도 없으면 기본 로직
 const summary = computed(() => {
+  // OpenAI 구조화된 분석이 있으면 summary 사용
+  if (report.value.openai_analysis?.summary) {
+    return report.value.openai_analysis.summary
+  }
+  
+  // AI 서버에서 받은 summary 사용
+  if (report.value.summary) {
+    return report.value.summary
+  }
+  
+  // 없으면 기존 로직으로 생성
   const hours = report.value.hours
   const waste = report.value.waste
   const anomalies = report.value.anomalies
@@ -74,6 +142,11 @@ const summary = computed(() => {
   if (waste.standby_wh >= 50) s += ' standby 낭비가 큰 편이라 미사용 시 차단을 권장.'
   if (anomalies.count >= 3) s += ' 이상치가 반복되어 센서/부하/릴레이 점검 권장.'
   return s
+})
+
+// ✅ OpenAI 권장사항 (있으면 사용)
+const aiRecommendations = computed(() => {
+  return report.value.openai_analysis?.recommendations || []
 })
 
 /** (UI용) 권장 조치 항목을 톤 포함으로 구성 */
@@ -133,6 +206,21 @@ const reportBadge = computed(() => {
       <p class="text-sm text-gray-400 mt-1">
         시간대별 사용 패턴과 주요 전력 소비 기기를 분석합니다
       </p>
+    </div>
+
+    <!-- 로딩/에러 상태 -->
+    <div v-if="loading" class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
+      <div class="flex items-center justify-center gap-3">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+        <span class="text-gray-400">AI 분석 리포트 로딩 중...</span>
+      </div>
+    </div>
+
+    <div v-if="error" class="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
+      <div class="flex items-center gap-2">
+        <AlertTriangle class="w-5 h-5 text-red-400" />
+        <span class="text-red-200">{{ error }}</span>
+      </div>
     </div>
 
     <!-- 시간대별 평균 전력 사용량 -->
