@@ -156,7 +156,7 @@ function getChartY(value: number): number {
         </span>
       </div>
 
-      <div class="relative h-20 mb-4">
+      <div class="relative h-30 mb-4">
         <div
           v-if="hourlyUsage.length === 0"
           class="flex items-center justify-center w-full h-full text-gray-500 text-sm"
