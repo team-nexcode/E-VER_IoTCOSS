@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { BarChart3, PlugZap, TrendingUp, FileText, AlertTriangle, Activity } from 'lucide-vue-next'
+import {
+  BarChart3,
+  PlugZap,
+  TrendingUp,
+  FileText,
+  AlertTriangle,
+  Activity,
+  CheckCircle2,
+} from 'lucide-vue-next'
 
 // 🔹 시간대별 평균 전력 사용량 (kWh) - 더미 데이터
 const hourlyUsage = [
@@ -68,12 +76,52 @@ const summary = computed(() => {
   return s
 })
 
-const actions = computed(() => {
-  const items: string[] = []
-  if (standbyHigh.value) items.push('미사용 시간대 자동 차단(스케줄/타이머) 권장')
-  if (anomaliesHigh.value) items.push('센서 값 튐/부하 변동/릴레이 상태 점검 권장')
-  if (items.length === 0) items.push('특이사항 없음: 현재 운영 유지')
+/** (UI용) 권장 조치 항목을 톤 포함으로 구성 */
+const actionItems = computed(() => {
+  const items: { tone: 'warn' | 'ok' | 'info'; title: string; desc: string }[] = []
+
+  if (standbyHigh.value) {
+    items.push({
+      tone: 'warn',
+      title: 'Standby 낭비 감소',
+      desc: '미사용 시 자동 차단(스케줄/타이머) 적용을 권장합니다.',
+    })
+  } else {
+    items.push({
+      tone: 'ok',
+      title: 'Standby 상태 양호',
+      desc: '현재 대기전력 수준은 안정적입니다.',
+    })
+  }
+
+  if (anomaliesHigh.value) {
+    items.push({
+      tone: 'warn',
+      title: '이상치 반복 점검',
+      desc: '센서/부하 변동/릴레이 접점 상태를 우선 점검해 주세요.',
+    })
+  } else if (report.value.anomalies.count > 0) {
+    items.push({
+      tone: 'info',
+      title: '이상치 소량 관찰',
+      desc: '추세를 1~2일 추가 관찰하는 것을 권장합니다.',
+    })
+  } else {
+    items.push({
+      tone: 'ok',
+      title: '이상치 없음',
+      desc: '측정값이 안정적입니다.',
+    })
+  }
+
   return items
+})
+
+const reportBadge = computed(() => {
+  const risky = standbyHigh.value || anomaliesHigh.value
+  return risky
+    ? { text: '주의', cls: 'bg-amber-500/10 text-amber-200 border-amber-500/20' }
+    : { text: '정상', cls: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20' }
 })
 </script>
 
@@ -88,6 +136,7 @@ const actions = computed(() => {
     </div>
 
     <!-- 시간대별 평균 전력 사용량 -->
+    <!-- ⚠️ 사용자 요청: 이 창은 건드리지 않음 -->
     <div class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-white font-semibold flex items-center gap-2">
@@ -124,26 +173,23 @@ const actions = computed(() => {
       </div>
     </div>
 
-    <!-- 자동 분석 리포트 (summary 스크립트 기반) -->
+    <!-- ✅ (레포트 UI만 개선) AI 분석 리포트 -->
     <div class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
-      <div class="flex items-start justify-between gap-4 mb-4">
-        <h3 class="text-white font-semibold flex items-center gap-2">
-          <FileText class="w-5 h-5 text-purple-300" />
-          자동 분석 리포트
-        </h3>
+      <!-- 헤더 -->
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div class="min-w-0">
+          <h3 class="text-white font-semibold flex items-center gap-2">
+            <FileText class="w-5 h-5 text-purple-300" />
+            AI분석 리포트
+          </h3>
+          <p class="text-xs text-gray-400 mt-1">
+            최근 <span class="text-gray-200 font-semibold">{{ report.hours }}</span>시간 기준 요약/권장 조치
+          </p>
+        </div>
 
         <div class="flex items-center gap-2">
-          <span
-            class="text-xs px-2.5 py-1 rounded-full border"
-            :class="standbyHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20'"
-          >
-            standby {{ standbyHigh ? '주의' : '양호' }}
-          </span>
-          <span
-            class="text-xs px-2.5 py-1 rounded-full border"
-            :class="anomaliesHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20'"
-          >
-            이상치 {{ anomaliesHigh ? '주의' : '양호' }}
+          <span class="text-xs px-2.5 py-1 rounded-full border" :class="reportBadge.cls">
+            {{ reportBadge.text }}
           </span>
           <span class="text-xs px-2.5 py-1 rounded-full border bg-blue-500/10 text-blue-200 border-blue-500/20">
             상태 {{ report.state_now.state }}
@@ -151,59 +197,148 @@ const actions = computed(() => {
         </div>
       </div>
 
+      <!-- 핵심 지표: 보기 좋게 3타일 -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-3">
-          <div class="text-[11px] text-gray-400 flex items-center gap-2">
-            <Activity class="w-4 h-4 text-sky-300" />
-            standby 추정
+        <div
+          class="rounded-2xl border bg-gray-900/40 px-4 py-4"
+          :class="standbyHigh ? 'border-amber-500/25' : 'border-gray-800'"
+        >
+          <div class="flex items-center justify-between">
+            <div class="text-[11px] text-gray-400 flex items-center gap-2">
+              <Activity class="w-4 h-4 text-sky-300" />
+              standby 추정
+            </div>
+            <span
+              class="text-[11px] px-2 py-0.5 rounded-full border"
+              :class="standbyHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
+            >
+              임계 50Wh
+            </span>
           </div>
-          <div class="mt-1 text-white font-semibold">
-            {{ report.waste.standby_wh.toFixed(2) }} <span class="text-xs text-gray-400">Wh</span>
+          <div class="mt-2 text-2xl font-bold text-white tabular-nums">
+            {{ report.waste.standby_wh.toFixed(2) }}
+            <span class="text-xs font-medium text-gray-400 ml-1">Wh</span>
           </div>
+          <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+            미사용 상태에서 누적되는 대기전력 추정치입니다.
+          </p>
         </div>
 
-        <div class="rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-3">
-          <div class="text-[11px] text-gray-400 flex items-center gap-2">
-            <AlertTriangle class="w-4 h-4 text-amber-300" />
-            이상치
+        <div
+          class="rounded-2xl border bg-gray-900/40 px-4 py-4"
+          :class="anomaliesHigh ? 'border-amber-500/25' : 'border-gray-800'"
+        >
+          <div class="flex items-center justify-between">
+            <div class="text-[11px] text-gray-400 flex items-center gap-2">
+              <AlertTriangle class="w-4 h-4 text-amber-300" />
+              이상치(Anomaly)
+            </div>
+            <span
+              class="text-[11px] px-2 py-0.5 rounded-full border"
+              :class="anomaliesHigh ? 'bg-amber-500/10 text-amber-200 border-amber-500/20' : 'bg-gray-500/10 text-gray-200 border-gray-500/20'"
+            >
+              임계 3건
+            </span>
           </div>
-          <div class="mt-1 text-white font-semibold">
-            {{ report.anomalies.count }} <span class="text-xs text-gray-400">건</span>
+          <div class="mt-2 text-2xl font-bold text-white tabular-nums">
+            {{ report.anomalies.count }}
+            <span class="text-xs font-medium text-gray-400 ml-1">건</span>
           </div>
+          <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+            순간 튐/패턴 이탈 등 이상 이벤트 횟수입니다.
+          </p>
         </div>
 
-        <div class="rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-3">
+        <div class="rounded-2xl border border-gray-800 bg-gray-900/40 px-4 py-4">
           <div class="text-[11px] text-gray-400 flex items-center gap-2">
             <FileText class="w-4 h-4 text-purple-300" />
             분석 구간
           </div>
-          <div class="mt-1 text-white font-semibold">
-            최근 {{ report.hours }}시간
+          <div class="mt-2 text-2xl font-bold text-white tabular-nums">
+            {{ report.hours }}
+            <span class="text-xs font-medium text-gray-400 ml-1">시간</span>
+          </div>
+          <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+            최근 데이터를 기준으로 리포트를 생성합니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- AI 코멘트: 긴 문장은 여기로 모아서 가독성 확보 -->
+      <div
+        class="mt-4 rounded-2xl border bg-gray-900/30 p-4"
+        :class="(standbyHigh || anomaliesHigh) ? 'border-amber-500/20' : 'border-gray-800'"
+      >
+        <div class="flex items-start gap-3">
+          <div
+            class="w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0"
+            :class="(standbyHigh || anomaliesHigh) ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'"
+          >
+            <AlertTriangle v-if="(standbyHigh || anomaliesHigh)" class="w-4 h-4 text-amber-300" />
+            <CheckCircle2 v-else class="w-4 h-4 text-emerald-300" />
+          </div>
+
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-white">AI 코멘트</div>
+            <p class="text-sm text-gray-200 mt-1 leading-relaxed break-words">
+              {{ summary }}
+            </p>
           </div>
         </div>
       </div>
 
-      <div class="mt-4 rounded-xl border border-gray-800 bg-gray-900/30 p-4">
-        <div class="text-[11px] text-gray-400 mb-1">요약</div>
-        <p class="text-sm text-gray-200 leading-relaxed">
-          {{ summary }}
-        </p>
-      </div>
+      <!-- 권장 조치: 제목/설명 분리 + 톤으로 가독성 -->
+      <div class="mt-4">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-400">권장 조치</div>
+          <div class="text-[11px] text-gray-500">
+            기준: standby ≥ 50Wh / 이상치 ≥ 3건
+          </div>
+        </div>
 
-      <div class="mt-3 space-y-2">
-        <div class="text-[11px] text-gray-400">권장 조치</div>
+        <div class="mt-2 space-y-2">
+          <div
+            v-for="(it, idx) in actionItems"
+            :key="idx"
+            class="rounded-2xl border px-4 py-3"
+            :class="
+              it.tone === 'warn'
+                ? 'border-amber-500/25 bg-amber-500/10'
+                : it.tone === 'ok'
+                ? 'border-emerald-500/25 bg-emerald-500/10'
+                : 'border-sky-500/25 bg-sky-500/10'
+            "
+          >
+            <div class="flex items-start gap-3">
+              <AlertTriangle
+                v-if="it.tone === 'warn'"
+                class="w-4 h-4 mt-0.5 text-amber-300 flex-shrink-0"
+              />
+              <CheckCircle2
+                v-else-if="it.tone === 'ok'"
+                class="w-4 h-4 mt-0.5 text-emerald-300 flex-shrink-0"
+              />
+              <Activity
+                v-else
+                class="w-4 h-4 mt-0.5 text-sky-300 flex-shrink-0"
+              />
 
-        <div
-          v-for="(t, i) in actions"
-          :key="i"
-          class="rounded-xl border border-gray-800 bg-gray-900/25 px-4 py-3 text-sm text-gray-200"
-        >
-          {{ t }}
+              <div class="min-w-0">
+                <div class="text-sm font-semibold text-white">
+                  {{ it.title }}
+                </div>
+                <div class="text-sm text-gray-200 mt-0.5 leading-relaxed">
+                  {{ it.desc }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 상위 전력 소비 디바이스 -->
+    <!-- ✅ 요청: 상위 디바이스 3개 '창' 크기 줄임(그대로 유지) -->
     <div class="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-6">
       <h3 class="text-white font-semibold mb-4 flex items-center gap-2">
         <PlugZap class="w-5 h-5 text-yellow-400" />
