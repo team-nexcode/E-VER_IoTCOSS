@@ -111,12 +111,12 @@ const linePath = computed(() => {
   const height = 100
   const padding = 5
   
-  const max = maxUsage.value * 1.1 // 10% 여유 공간
+  const max = Math.max(maxUsage.value, 0.1) // 최소값 보장
   const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
     const x = padding + idx * step
-    const y = padding + (height - padding * 2) * (1 - item.value / max)
+    const y = height - padding - ((item.value / max) * (height - padding * 2))
     return `${x},${y}`
   })
   
@@ -131,12 +131,12 @@ const areaPath = computed(() => {
   const height = 100
   const padding = 5
   
-  const max = maxUsage.value * 1.1 // 10% 여유 공간
+  const max = Math.max(maxUsage.value, 0.1) // 최소값 보장
   const step = (width - padding * 2) / Math.max(hourlyUsage.value.length - 1, 1)
   
   const points = hourlyUsage.value.map((item, idx) => {
     const x = padding + idx * step
-    const y = padding + (height - padding * 2) * (1 - item.value / max)
+    const y = height - padding - ((item.value / max) * (height - padding * 2))
     return `${x},${y}`
   })
   
@@ -225,7 +225,7 @@ const hoveredIndex = ref<number | null>(null)
               v-for="(item, idx) in hourlyUsage"
               :key="idx"
               :cx="5 + idx * (90 / Math.max(hourlyUsage.length - 1, 1))"
-              :cy="5 + 90 * (1 - item.value / (maxUsage * 1.1))"
+              :cy="95 - ((item.value / Math.max(maxUsage, 0.1)) * 90)"
               :r="hoveredIndex === idx ? 1.2 : 0.8"
               fill="rgb(59, 130, 246)"
               stroke="white"
@@ -241,7 +241,7 @@ const hoveredIndex = ref<number | null>(null)
             v-if="hoveredIndex !== null"
             class="absolute bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pointer-events-none z-10 shadow-xl whitespace-nowrap"
             :style="{
-              left: hoveredIndex === 0 ? '5%' : hoveredIndex === hourlyUsage.length - 1 ? '95%' : `${(hoveredIndex / Math.max(hourlyUsage.length - 1, 1)) * 100}%`,
+              left: hoveredIndex === 0 ? '8%' : hoveredIndex === hourlyUsage.length - 1 ? '92%' : `${5 + hoveredIndex * (90 / Math.max(hourlyUsage.length - 1, 1))}%`,
               top: '50%',
               transform: hoveredIndex === 0 ? 'translateY(-50%)' : hoveredIndex === hourlyUsage.length - 1 ? 'translate(-100%, -50%)' : 'translate(-50%, -50%)'
             }"
@@ -253,12 +253,15 @@ const hoveredIndex = ref<number | null>(null)
       </div>
       
       <!-- X축 레이블 -->
-      <div class="flex justify-between px-2">
+      <div class="relative px-2" style="height: 20px;">
         <span
-          v-for="item in hourlyUsage"
+          v-for="(item, idx) in hourlyUsage"
           :key="item.hour"
-          class="text-[11px] text-gray-400 text-center"
-          :style="{ width: `${100 / hourlyUsage.length}%` }"
+          class="absolute text-[11px] text-gray-400"
+          :style="{ 
+            left: `${5 + idx * (90 / Math.max(hourlyUsage.length - 1, 1))}%`,
+            transform: 'translateX(-50%)'
+          }"
         >
           {{ item.hour }}시
         </span>
