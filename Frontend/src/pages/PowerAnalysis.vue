@@ -12,26 +12,13 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 
-// 🔹 시간대별 평균 전력 사용량 (kWh) - 더미 데이터
-const hourlyUsage = [
-  { hour: '0', value: 1.2 },
-  { hour: '3', value: 0.8 },
-  { hour: '6', value: 1.5 },
-  { hour: '9', value: 3.2 },
-  { hour: '12', value: 4.1 },
-  { hour: '15', value: 3.6 },
-  { hour: '18', value: 5.4 },
-  { hour: '21', value: 4.8 },
-]
+// 🔹 시간대별 평균 전력 사용량 (kWh) - 실시간 데이터
+const hourlyUsage = ref<Array<{ hour: string; value: number }>>([])
 
-// 🔹 상위 3개 전력 소비 디바이스
-const topDevices = [
-  { name: '온풍기', usage: 38 },
-  { name: '전기히터', usage: 22 },
-  { name: 'TV', usage: 11 },
-]
+// 🔹 상위 3개 전력 소비 디바이스 - 실시간 데이터
+const topDevices = ref<Array<{ name: string; usage: number }>>([])
 
-const maxUsage = Math.max(...hourlyUsage.map(h => h.value))
+const maxUsage = computed(() => Math.max(...hourlyUsage.value.map(h => h.value), 1))
 
 /**
  * 🔹 AI 리포트 데이터 (실시간)
@@ -94,6 +81,16 @@ async function fetchAIReport() {
       devices: data.devices,
       openai_analysis: data.openai_available ? data.openai_analysis : undefined
     }
+    
+    // 시간대별 사용량 업데이트
+    if (data.hourly_usage && data.hourly_usage.length > 0) {
+      hourlyUsage.value = data.hourly_usage
+    }
+    
+    // 상위 디바이스 업데이트
+    if (data.top_devices && data.top_devices.length > 0) {
+      topDevices.value = data.top_devices
+    }
   } catch (e: any) {
     console.error('AI 리포트 로드 실패:', e)
     error.value = e.response?.data?.detail || e.message || '리포트를 불러올 수 없습니다'
@@ -148,6 +145,12 @@ onMounted(() => {
 
       <div class="flex items-end gap-3 h-44">
         <div
+          v-if="hourlyUsage.length === 0"
+          class="flex items-center justify-center w-full h-full text-gray-500 text-sm"
+        >
+          데이터를 불러오는 중...
+        </div>
+        <div
           v-for="item in hourlyUsage"
           :key="item.hour"
           class="flex-1 flex flex-col items-center group"
@@ -163,10 +166,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="mt-5 text-xs text-gray-400">
-        전력 사용 피크 시간대는
-        <span class="text-blue-400 font-semibold">18~21시</span>
-        입니다.
+      <div class="mt-5 text-xs text-gray-400" v-if="hourlyUsage.length > 0">
+        전력 사용 피크 시간대 분석 완료
       </div>
     </div>
 

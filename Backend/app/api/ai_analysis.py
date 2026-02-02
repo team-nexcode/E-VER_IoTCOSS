@@ -428,7 +428,7 @@ async def get_full_analysis_report(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/analyze-ai-server", summary="AI 서버 리포트를 OpenAI로 분석")
-async def analyze_ai_server_report(hours: int = 24):
+async def analyze_ai_server_report(hours: int = 24, db: AsyncSession = Depends(get_db)):
     """
     외부 AI 서버에서 모든 디바이스의 리포트를 받아 OpenAI로 종합 분석을 생성합니다.
     """
@@ -481,7 +481,60 @@ async def analyze_ai_server_report(hours: int = 24):
         if not all_reports:
             raise HTTPException(status_code=404, detail="유효한 리포트를 가져올 수 없습니다")
         
-        # 3. 종합 데이터를 AIReportData 형식으로 변환
+        # 3. 시간대별 평균 전력 사용량 계산 (최근 24시간)
+        since = datetime.now() - timedelta(hours=24)
+        hourly_usage = []
+        
+        for hour in range(0, 24, 3):  # 3시간 간격
+            hour_start = since + timedelta(hours=hour)
+            hour_end = hour_start + timedelta(hours=3)
+            
+            result = await db.execute(
+                select(func.avg(Device.energy_watt))
+                .where(
+                    Device.timestamp >= hour_start,
+                    Device.timestamp < hour_end,
+                    Device.energy_watt.isnot(None),
+                    Device.energy_watt > 0
+                )
+            )
+            avg_watt = result.scalar() or 0
+            avg_kwh = round(avg_watt / 1000, 2)  # W -> kWh
+            
+            hourly_usage.append({
+                "hour": str(hour),
+                "value": avg_kwh
+            })
+        
+        # 4. 상위 전력 소비 디바이스 계산 (최근 24시간)
+        result = await db.execute(
+            select(
+                Device.device_name,
+                func.sum(Device.energy_watt).label('total_watt')
+            )
+            .where(
+                Device.timestamp >= since,
+                Device.energy_watt.isnot(None),
+                Device.energy_watt > 0,
+                Device.device_name.isnot(None)
+            )
+            .group_by(Device.device_name)
+            .order_by(func.sum(Device.energy_watt).desc())
+            .limit(3)
+        )
+        
+        top_devices_data = result.all()
+        total_watt = sum(d.total_watt for d in top_devices_data) or 1
+        
+        top_devices = [
+            {
+                "name": d.device_name,
+                "usage": round((d.total_watt / total_watt) * 100)  # 퍼센트로 표시
+            }
+            for d in top_devices_data
+        ]
+        
+        # 5. 종합 데이터를 AIReportData 형식으로 변환
         all_anomalies = []
         all_standby_devices = []
         
@@ -526,7 +579,7 @@ async def analyze_ai_server_report(hours: int = 24):
             total_standby_waste_cost=total_monthly_cost
         )
         
-        # 4. 기존 프롬프트 엔지니어링 함수 사용
+        # 6. 기존 프롬프트 엔지니어링 함수 사용
         if not settings.OPENAI_API_KEY or not AsyncOpenAI:
             return {
                 "device_count": len(all_reports),
@@ -536,6 +589,8 @@ async def analyze_ai_server_report(hours: int = 24):
                 "total_standby_wh": total_standby_wh,
                 "total_monthly_kwh": total_monthly_kwh,
                 "total_monthly_cost": total_monthly_cost,
+                "hourly_usage": hourly_usage,
+                "top_devices": top_devices,
                 "openai_available": False
             }
         
@@ -549,6 +604,8 @@ async def analyze_ai_server_report(hours: int = 24):
             "total_standby_wh": total_standby_wh,
             "total_monthly_kwh": total_monthly_kwh,
             "total_monthly_cost": total_monthly_cost,
+            "hourly_usage": hourly_usage,
+            "top_devices": top_devices,
             "openai_analysis": {
                 "summary": analysis.summary,
                 "recommendations": analysis.recommendations,
