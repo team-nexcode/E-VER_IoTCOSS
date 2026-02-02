@@ -68,46 +68,59 @@ async def get_daily_power(
     device_mac: Optional[str] = Query(None, description="특정 디바이스 MAC 주소 (없으면 전체)"),
     db: AsyncSession = Depends(get_db)
 ):
-    """일별 총 전력량을 반환합니다. device_mac이 있으면 해당 디바이스만, 없으면 전체 합계를 반환합니다."""
+    """일별 총 전력량(kWh)을 반환합니다. device_mac이 있으면 해당 디바이스만, 없으면 전체 합계를 반환합니다."""
+    from app.api.websocket import calculate_energy_kwh
+    
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=days - 1)
     
-    # 날짜별로 그룹화하여 평균 전력 계산
-    query = select(
-        cast(Device.timestamp, Date).label('date'),
-        func.avg(Device.energy_amp).label('avg_power')
-    ).where(
-        Device.timestamp >= start_date,
-        Device.timestamp <= datetime.combine(end_date, datetime.max.time()),
-        Device.energy_amp.isnot(None)
-    )
-    
-    if device_mac:
-        query = query.where(Device.device_mac == device_mac)
-    
-    query = query.group_by(cast(Device.timestamp, Date)).order_by(cast(Device.timestamp, Date))
-    
-    result = await db.execute(query)
-    rows = result.all()
-    
-    # 결과를 date와 power로 변환
-    daily_data = []
-    for row in rows:
-        daily_data.append({
-            "date": row.date.strftime("%m/%d"),
-            "power": round(row.avg_power or 0, 2)
-        })
-    
-    # 데이터가 없는 날짜는 0으로 채우기
-    date_dict = {item["date"]: item["power"] for item in daily_data}
     result_data = []
     
+    # 각 날짜별로 전력량 계산
     for i in range(days):
         current_date = start_date + timedelta(days=i)
         date_str = current_date.strftime("%m/%d")
+        
+        # 디바이스별 또는 전체 전력량 계산
+        if device_mac:
+            # 특정 디바이스만 계산 - devices 테이블에서 직접 계산
+            VOLTAGE = 220.0
+            start_dt = datetime.combine(current_date, datetime.min.time())
+            end_dt = datetime.combine(current_date + timedelta(days=1), datetime.min.time())
+            
+            result = await db.execute(
+                select(Device.energy_amp, Device.timestamp)
+                .where(
+                    Device.device_mac == device_mac,
+                    Device.timestamp >= start_dt,
+                    Device.timestamp < end_dt,
+                    Device.energy_amp.isnot(None),
+                    Device.timestamp.isnot(None)
+                )
+                .order_by(Device.timestamp)
+            )
+            rows = result.all()
+            
+            total_wh = 0.0
+            prev_amp = None
+            prev_ts = None
+            
+            for amp, ts in rows:
+                if prev_amp is not None and prev_ts is not None:
+                    dt_hours = (ts - prev_ts).total_seconds() / 3600
+                    if 0 < dt_hours < 6:
+                        total_wh += ((prev_amp + amp) / 2) * VOLTAGE * dt_hours
+                prev_amp = amp
+                prev_ts = ts
+            
+            kwh = total_wh / 1000
+        else:
+            # 전체 전력량 - websocket의 calculate_energy_kwh 함수 사용
+            kwh = await calculate_energy_kwh(current_date)
+        
         result_data.append({
             "date": date_str,
-            "power": date_dict.get(date_str, 0)
+            "power": round(kwh, 3)
         })
     
     return result_data
