@@ -3,21 +3,21 @@ import { defineStore } from 'pinia'
 import type { DeviceMac } from '@/types/deviceMac'
 
 export const useDeviceMacStore = defineStore('deviceMac', () => {
-  const devices = ref<DeviceMac[]>([])
+  const deviceMacs = ref<DeviceMac[]>([])
   const loading = ref(false)
 
-  async function fetchDevices() {
+  async function fetchDeviceMacs() {
     loading.value = true
     try {
       const res = await fetch('/api/device_mac/')
       if (!res.ok) return
       const data = await res.json()
-      devices.value = (data.items || []).map((item: Record<string, unknown>) => ({
+      deviceMacs.value = (data.items || []).map((item: Record<string, unknown>) => ({
         id: item.id as number,
-        deviceName: item.device_name as string,
-        deviceMac: item.device_mac as string,
+        device_name: item.device_name as string,
+        device_mac: item.device_mac as string,
         location: item.location as string,
-        createdAt: item.created_at as string,
+        created_at: item.created_at as string,
       }))
     } catch {
       // silent
@@ -40,7 +40,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || '등록 실패')
     }
-    await fetchDevices()
+    await fetchDeviceMacs()
   }
 
   async function updateDevice(id: number, data: { deviceName?: string; deviceMac?: string; location?: string }) {
@@ -58,7 +58,7 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || '수정 실패')
     }
-    await fetchDevices()
+    await fetchDeviceMacs()
   }
 
   async function deleteDevice(id: number) {
@@ -67,13 +67,13 @@ export const useDeviceMacStore = defineStore('deviceMac', () => {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || '삭제 실패')
     }
-    await fetchDevices()
+    await fetchDeviceMacs()
   }
 
   return {
-    devices,
+    deviceMacs,
     loading,
-    fetchDevices,
+    fetchDeviceMacs,
     addDevice,
     updateDevice,
     deleteDevice,

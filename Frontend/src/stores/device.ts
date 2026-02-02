@@ -186,6 +186,28 @@ export const useDeviceStore = defineStore('device', () => {
     }
   }
 
+  async function fetchDailyPower(days: number = 7, deviceMac?: string) {
+    try {
+      const url = deviceMac 
+        ? `/api/power/daily?days=${days}&device_mac=${deviceMac}`
+        : `/api/power/daily?days=${days}`
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        if (deviceMac) {
+          const device = devices.value.find(d => d.deviceMac === deviceMac)
+          if (device) {
+            dailyPowerByDevice.value[device.id] = data
+          }
+        } else {
+          dailyPowerTotal.value = data
+        }
+      }
+    } catch (error) {
+      console.error('일별 전력량 조회 실패:', error)
+    }
+  }
+
   return {
     devices,
     outletPositions,
@@ -196,6 +218,7 @@ export const useDeviceStore = defineStore('device', () => {
     setDevices,
     setPowerSummary,
     fetchDesiredStates,
+    fetchDailyPower,
     updateDeviceSensor,
     selectDevice,
     updatePosition,

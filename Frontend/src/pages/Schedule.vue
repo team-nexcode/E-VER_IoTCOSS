@@ -1,22 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { Plus, Check, Trash2 } from 'lucide-vue-next'
-import { useDeviceStore } from '@/stores/device'
+import { useDeviceMacStore } from '@/stores/deviceMac'
+import { useScheduleStore } from '@/stores/schedule'
 import { storeToRefs } from 'pinia'
+import type { ScheduleCreate } from '@/types/schedule'
 
 type ScheduleAction = 'on' | 'off'
-interface DeviceSchedule {
-  id: string
-  deviceId: number
-  time: string // "HH:MM"
-  action: ScheduleAction
-}
-
-const LS_SCHEDULES = 'aiot_schedules'
 
 /** ===== Store ===== */
-const store = useDeviceStore()
-const { devices } = storeToRefs(store)
+const deviceMacStore = useDeviceMacStore()
+const scheduleStore = useScheduleStore()
+const { deviceMacs } = storeToRefs(deviceMacStore)
+const { schedules, loading } = storeToRefs(scheduleStore)
 
 /** ===== 서버 동기화 시간(대시보드 좌측하단 기준과 동일) ===== */
 const serverOffset = ref<number | null>(null)
@@ -39,57 +35,33 @@ function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
 
-/** ===== Schedules list (저장/표시) ===== */
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
+function getDeviceName(mac: string) {
+  return deviceMacs.value.find((d) => d.device_mac === mac)?.device_name ?? mac
 }
 
-const schedules = ref<DeviceSchedule[]>([])
-
-function loadSchedules() {
-  const list = safeParse<any[]>(localStorage.getItem(LS_SCHEDULES), [])
-  schedules.value = Array.isArray(list)
-    ? list
-        .filter(
-          (s) =>
-            s &&
-            typeof s.id === 'string' &&
-            typeof s.deviceId === 'number' &&
-            typeof s.time === 'string' &&
-            (s.action === 'on' || s.action === 'off')
-        )
-        .map((s) => ({
-          id: s.id as string,
-          deviceId: s.deviceId as number,
-          time: s.time as string,
-          action: s.action as ScheduleAction,
-        }))
-    : []
+function getDeviceLoc(mac: string) {
+  return deviceMacs.value.find((d) => d.device_mac === mac)?.location ?? ''
 }
 
-function saveSchedules() {
-  localStorage.setItem(LS_SCHEDULES, JSON.stringify(schedules.value))
+// 스케줄에서 시간 표시 (HH:MM 형식)
+function getScheduleTime(schedule: any): string {
+  // ON 스케줄: start_time 사용, OFF 스케줄: end_time 사용
+  const timeStr = schedule.start_time !== '00:00:00' ? schedule.start_time : schedule.end_time
+  return timeStr.substring(0, 5) // HH:MM만 추출
 }
 
-function makeId() {
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`
+// 스케줄의 액션 (on/off) 판단
+function getScheduleAction(schedule: any): string {
+  return schedule.start_time !== '00:00:00' ? 'on' : 'off'
 }
 
-function getDeviceName(id: number) {
-  return devices.value.find((d) => d.id === id)?.name ?? `Device #${id}`
-}
-function getDeviceLoc(id: number) {
-  return devices.value.find((d) => d.id === id)?.location ?? ''
+async function removeSchedule(id: number) {
+  if (!confirm('이 스케줄을 삭제하시겠습니까?')) return
+  await scheduleStore.deleteSchedule(id)
 }
 
-function removeSchedule(id: string) {
-  schedules.value = schedules.value.filter((s) => s.id !== id)
-  saveSchedules()
+async function toggleSchedule(id: number) {
+  await scheduleStore.toggleSchedule(id)
 }
 
 /** ===== Modal State ===== */
@@ -193,7 +165,7 @@ function wheelClickMin(i: number) {
 /** ===== Open/Close ===== */
 async function openModal() {
   isOpen.value = true
-  selectedDeviceId.value = devices.value[0]?.id ?? null
+  selectedDeviceId.value = deviceMacs.value[0]?.id ?? null
   action.value = 'on'
 
   // ✅ 기본 시간 = 현재 시간(서버 기준)
@@ -209,24 +181,36 @@ function closeModal() {
   isOpen.value = false
 }
 
-function confirmModal() {
+async function confirmModal() {
   if (selectedDeviceId.value === null) return
 
-  const t = `${pad2(hour.value)}:${pad2(minute.value)}`
-  schedules.value.push({
-    id: makeId(),
-    deviceId: selectedDeviceId.value,
-    time: t,
-    action: action.value,
-  })
-  saveSchedules()
+  const hh = pad2(hour.value)
+  const mm = pad2(minute.value)
+  const timeStr = `${hh}:${mm}:00`
+
+  // 선택된 device_mac 찾기
+  const selectedDevice = deviceMacs.value.find(d => d.id === selectedDeviceId.value)
+  if (!selectedDevice) return
+
+  // ON 스케줄: start_time을 설정, end_time은 23:59:59
+  // OFF 스케줄: start_time은 00:00:00, end_time을 설정
+  const scheduleData = {
+    device_mac: selectedDevice.device_mac,
+    start_time: action.value === 'on' ? timeStr : '00:00:00',
+    end_time: action.value === 'off' ? timeStr : '23:59:59',
+    schedule_name: `${selectedDevice.device_name} ${action.value.toUpperCase()} at ${hh}:${mm}`,
+    days_of_week: '0,1,2,3,4,5,6', // 매일 실행
+  }
+
+  await scheduleStore.createSchedule(scheduleData)
   closeModal()
 }
 
 const selectedTimeText = computed(() => `${pad2(hour.value)}:${pad2(minute.value)}`)
 
 onMounted(() => {
-  loadSchedules()
+  deviceMacStore.fetchDeviceMacs()
+  scheduleStore.fetchSchedules()
 })
 </script>
 
@@ -248,22 +232,22 @@ onMounted(() => {
           <div class="min-w-0">
             <div class="flex items-center gap-3">
               <div class="text-[22px] font-mono font-bold text-white tracking-wider">
-                {{ s.time }}
+                {{ getScheduleTime(s) }}
               </div>
 
               <span
                 class="text-[11px] font-bold px-2 py-1 rounded-full border"
-                :class="s.action === 'on'
+                :class="getScheduleAction(s) === 'on'
                   ? 'bg-green-500/15 text-green-200 border-green-500/25'
                   : 'bg-red-500/15 text-red-200 border-red-500/25'"
               >
-                {{ s.action.toUpperCase() }}
+                {{ getScheduleAction(s).toUpperCase() }}
               </span>
             </div>
 
             <div class="text-sm text-white/70 truncate mt-0.5">
-              {{ getDeviceName(s.deviceId) }}
-              <span class="text-white/35" v-if="getDeviceLoc(s.deviceId)">· {{ getDeviceLoc(s.deviceId) }}</span>
+              {{ getDeviceName(s.device_mac) }}
+              <span class="text-white/35" v-if="getDeviceLoc(s.device_mac)">· {{ getDeviceLoc(s.device_mac) }}</span>
             </div>
           </div>
 
@@ -329,20 +313,20 @@ onMounted(() => {
             <div class="bg-white/[0.04] ring-1 ring-white/10 overflow-hidden rounded-none">
               <div class="divide-y divide-white/10">
                 <button
-                  v-for="d in devices"
+                  v-for="d in deviceMacs"
                   :key="d.id"
                   type="button"
                   class="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.05] transition text-left"
                   @click="selectedDeviceId = d.id"
                 >
                   <div class="min-w-0">
-                    <p class="text-[16px] font-semibold text-white truncate">{{ d.name }}</p>
+                    <p class="text-[16px] font-semibold text-white truncate">{{ d.device_name }}</p>
                     <p class="text-[12px] text-white/45 truncate mt-0.5">{{ d.location }}</p>
                   </div>
                   <Check v-if="selectedDeviceId === d.id" class="w-6 h-6 text-sky-300 flex-shrink-0" />
                 </button>
 
-                <div v-if="devices.length === 0" class="px-4 py-5 text-sm text-white/45">
+                <div v-if="deviceMacs.length === 0" class="px-4 py-5 text-sm text-white/45">
                   디바이스 없음
                 </div>
               </div>

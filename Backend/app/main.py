@@ -65,7 +65,10 @@ async def lifespan(app: FastAPI):
     logger.info("데이터베이스 테이블 초기화 완료")
 
     # 전력량 누적기 초기화 + 오프라인 감지 백그라운드 태스크 시작
-    await init_energy_accumulator()
+    try:
+        await init_energy_accumulator()
+    except Exception as e:
+        logger.error(f"전력량 누적기 초기화 실패 (서버는 계속 실행됩니다): {e}")
     offline_checker_task = start_offline_checker()
 
     # MQTT 브로커 연결 시도
