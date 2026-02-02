@@ -465,88 +465,125 @@ async def get_full_analysis_report(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/analyze-ai-server", summary="AI 서버 리포트를 OpenAI로 분석")
-async def analyze_ai_server_report(
-    device_mac: str = "48:27:E2:E0:53:DC",
-    hours: int = 24
-):
+async def analyze_ai_server_report(hours: int = 24):
     """
-    외부 AI 서버에서 리포트를 받아 OpenAI로 사용자 친화적인 분석을 생성합니다.
+    외부 AI 서버에서 모든 디바이스의 리포트를 받아 OpenAI로 종합 분석을 생성합니다.
     """
     try:
-        # 1. AI 서버에서 리포트 가져오기
         ai_server_url = settings.AI_REPORT_URL or "http://iotcoss.nexcode.kr:8001"
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{ai_server_url}/devices/{device_mac}/report",
-                params={"hours": hours, "voltage": 220}
-            )
-            response.raise_for_status()
-            ai_report = response.json()
+            # 1. 모든 디바이스 목록 가져오기
+            devices_response = await client.get(f"{ai_server_url}/devices")
+            devices_response.raise_for_status()
+            devices_data = devices_response.json()
+            device_list = devices_data.get("items", [])
+            
+            if not device_list:
+                raise HTTPException(status_code=404, detail="디바이스를 찾을 수 없습니다")
+            
+            # 2. 각 디바이스별로 리포트 가져오기
+            all_reports = []
+            total_anomalies = 0
+            total_standby_wh = 0
+            
+            for device in device_list:
+                device_mac = device["device_mac"]
+                device_name = device.get("device_name", "Unknown")
+                
+                try:
+                    report_response = await client.get(
+                        f"{ai_server_url}/devices/{device_mac}/report",
+                        params={"hours": hours, "voltage": 220}
+                    )
+                    report_response.raise_for_status()
+                    report = report_response.json()
+                    
+                    all_reports.append({
+                        "device_mac": device_mac,
+                        "device_name": device_name,
+                        "anomaly_count": report["anomalies"]["count"],
+                        "standby_wh": report["waste"]["standby_wh"],
+                        "state": report["state_now"]["state"],
+                        "summary": report.get("summary", "")
+                    })
+                    
+                    total_anomalies += report["anomalies"]["count"]
+                    total_standby_wh += report["waste"]["standby_wh"]
+                    
+                except Exception as e:
+                    logger.warning(f"디바이스 {device_name}({device_mac}) 리포트 실패: {e}")
+                    continue
         
-        # 2. AI 서버 리포트를 AIReportData 형식으로 변환
-        anomalies = []
-        for item in ai_report["anomalies"]["items"][:10]:
-            anomalies.append(AnomalyDevice(
-                device_mac=device_mac,
-                device_name=ai_report["state_now"].get("device_name", "Unknown"),
-                timestamp=datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00")),
-                current_amp=item["energy_amp"],
-                expected_amp=item.get("expected_amp", 0),
-                deviation_percent=item.get("z", 0) * 10,  # z-score를 percent로 근사
-                severity="high" if item["z"] > 6 else "medium" if item["z"] > 4 else "low"
-            ))
+        if not all_reports:
+            raise HTTPException(status_code=404, detail="유효한 리포트를 가져올 수 없습니다")
         
-        standby_wh = ai_report["waste"]["standby_wh"]
-        monthly_standby_kwh = round((standby_wh / hours) * 24 * 30 / 1000, 2)
-        monthly_cost = int(monthly_standby_kwh * 300)
+        # 3. 종합 데이터를 AIReportData 형식으로 변환
+        all_anomalies = []
+        all_standby_devices = []
         
-        standby_devices = [StandbyPowerDevice(
-            device_mac=device_mac,
-            device_name=ai_report["state_now"].get("device_name", "Unknown"),
-            avg_standby_amp=standby_wh / (hours * 220),  # Wh to Amp 근사
-            daily_waste_wh=standby_wh * 24 / hours,
-            monthly_waste_kwh=monthly_standby_kwh,
-            monthly_waste_cost=monthly_cost
-        )]
+        for report_item in all_reports:
+            # 이상치가 있는 디바이스만 추가
+            if report_item["anomaly_count"] > 0:
+                all_anomalies.append(AnomalyDevice(
+                    device_mac=report_item["device_mac"],
+                    device_name=report_item["device_name"],
+                    timestamp=datetime.now(),
+                    current_amp=0,
+                    expected_amp=0,
+                    deviation_percent=0,
+                    severity="medium" if report_item["anomaly_count"] >= 10 else "low"
+                ))
+            
+            # 대기전력이 있는 디바이스 추가
+            if report_item["standby_wh"] > 0:
+                monthly_standby_kwh = round((report_item["standby_wh"] / hours) * 24 * 30 / 1000, 2)
+                monthly_cost = int(monthly_standby_kwh * 300)
+                
+                all_standby_devices.append(StandbyPowerDevice(
+                    device_mac=report_item["device_mac"],
+                    device_name=report_item["device_name"],
+                    avg_standby_amp=report_item["standby_wh"] / (hours * 220),
+                    daily_waste_wh=report_item["standby_wh"] * 24 / hours,
+                    monthly_waste_kwh=monthly_standby_kwh,
+                    monthly_waste_cost=monthly_cost
+                ))
+        
+        # 전체 통계
+        total_monthly_kwh = round((total_standby_wh / hours) * 24 * 30 / 1000, 2)
+        total_monthly_cost = int(total_monthly_kwh * 300)
         
         report_data = AIReportData(
-            anomalies=anomalies,
-            standby_power_devices=standby_devices,
-            total_anomaly_count=ai_report["anomalies"]["count"],
-            total_standby_waste_kwh=monthly_standby_kwh,
-            total_standby_waste_cost=monthly_cost
+            anomalies=all_anomalies,
+            standby_power_devices=all_standby_devices,
+            total_anomaly_count=total_anomalies,
+            total_standby_waste_kwh=total_monthly_kwh,
+            total_standby_waste_cost=total_monthly_cost
         )
         
-        # 3. 기존 프롬프트 엔지니어링 함수 사용
+        # 4. 기존 프롬프트 엔지니어링 함수 사용
         if not settings.OPENAI_API_KEY or not AsyncOpenAI:
             return {
-                "device_mac": device_mac,
+                "device_count": len(all_reports),
                 "hours": hours,
-                "ai_server_summary": ai_report.get("summary", ""),
-                "openai_available": False,
-                "basic_analysis": {
-                    "standby_wh": standby_wh,
-                    "monthly_standby_kwh": monthly_standby_kwh,
-                    "monthly_cost": monthly_cost,
-                    "anomaly_count": ai_report["anomalies"]["count"],
-                    "state": ai_report["state_now"]["state"]
-                }
+                "devices": all_reports,
+                "total_anomaly_count": total_anomalies,
+                "total_standby_wh": total_standby_wh,
+                "total_monthly_kwh": total_monthly_kwh,
+                "total_monthly_cost": total_monthly_cost,
+                "openai_available": False
             }
         
         analysis = await analyze_with_openai(report_data)
         
         return {
-            "device_mac": device_mac,
+            "device_count": len(all_reports),
             "hours": hours,
-            "ai_server_data": {
-                "standby_wh": standby_wh,
-                "monthly_standby_kwh": monthly_standby_kwh,
-                "monthly_cost": monthly_cost,
-                "anomaly_count": ai_report["anomalies"]["count"],
-                "state": ai_report["state_now"]["state"],
-                "basic_summary": ai_report.get("summary", "")
-            },
+            "devices": all_reports,
+            "total_anomaly_count": total_anomalies,
+            "total_standby_wh": total_standby_wh,
+            "total_monthly_kwh": total_monthly_kwh,
+            "total_monthly_cost": total_monthly_cost,
             "openai_analysis": {
                 "summary": analysis.summary,
                 "recommendations": analysis.recommendations,
