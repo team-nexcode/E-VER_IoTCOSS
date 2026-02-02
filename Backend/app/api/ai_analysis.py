@@ -490,15 +490,16 @@ async def analyze_ai_server_report(hours: int = 24, db: AsyncSession = Depends(g
             hour_end = hour_start + timedelta(hours=3)
             
             result = await db.execute(
-                select(func.avg(Device.energy_watt))
+                select(func.avg(Device.energy_amp))
                 .where(
                     Device.timestamp >= hour_start,
                     Device.timestamp < hour_end,
-                    Device.energy_watt.isnot(None),
-                    Device.energy_watt > 0
+                    Device.energy_amp.isnot(None),
+                    Device.energy_amp > 0
                 )
             )
-            avg_watt = result.scalar() or 0
+            avg_amp = result.scalar() or 0
+            avg_watt = avg_amp * 220  # A -> W
             avg_kwh = round(avg_watt / 1000, 2)  # W -> kWh
             
             hourly_usage.append({
@@ -510,26 +511,26 @@ async def analyze_ai_server_report(hours: int = 24, db: AsyncSession = Depends(g
         result = await db.execute(
             select(
                 Device.device_name,
-                func.sum(Device.energy_watt).label('total_watt')
+                func.sum(Device.energy_amp).label('total_amp')
             )
             .where(
                 Device.timestamp >= since,
-                Device.energy_watt.isnot(None),
-                Device.energy_watt > 0,
+                Device.energy_amp.isnot(None),
+                Device.energy_amp > 0,
                 Device.device_name.isnot(None)
             )
             .group_by(Device.device_name)
-            .order_by(func.sum(Device.energy_watt).desc())
+            .order_by(func.sum(Device.energy_amp).desc())
             .limit(3)
         )
         
         top_devices_data = result.all()
-        total_watt = sum(d.total_watt for d in top_devices_data) or 1
+        total_amp = sum(d.total_amp for d in top_devices_data) or 1
         
         top_devices = [
             {
                 "name": d.device_name,
-                "usage": round((d.total_watt / total_watt) * 100)  # 퍼센트로 표시
+                "usage": round((d.total_amp / total_amp) * 100)  # 퍼센트로 표시
             }
             for d in top_devices_data
         ]
