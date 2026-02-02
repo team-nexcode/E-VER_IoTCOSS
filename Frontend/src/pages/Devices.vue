@@ -7,7 +7,7 @@ import type { DeviceMac } from '@/types/deviceMac'
 
 /** ===== 로직 (기능 유지) ===== */
 const store = useDeviceMacStore()
-const { devices, loading } = storeToRefs(store)
+const { deviceMacs, loading } = storeToRefs(store)
 
 const isAddModalOpen = ref(false)
 const addForm = ref({ deviceName: '', deviceMac: '', location: '' })
@@ -40,8 +40,8 @@ async function handleAdd() {
 function openEditModal(device: DeviceMac) {
   editForm.value = {
     id: device.id,
-    deviceName: device.deviceName,
-    deviceMac: device.deviceMac,
+    deviceName: device.device_name,
+    deviceMac: device.device_mac,
     location: device.location,
   }
   editError.value = ''
@@ -71,7 +71,7 @@ async function handleDelete(id: number, name: string) {
   try { await store.deleteDevice(id) } catch { /* silent */ }
 }
 
-onMounted(() => { store.fetchDevices() })
+onMounted(() => { store.fetchDeviceMacs() })
 </script>
 
 <template>
@@ -79,7 +79,7 @@ onMounted(() => { store.fetchDevices() })
     <div class="flex justify-between items-end">
       <div>
         <h2 class="text-3xl font-bold text-white">디바이스 관리</h2>
-        <p class="text-base text-gray-500 mt-2">등록된 {{ devices.length }}개의 기기를 관리하세요</p>
+        <p class="text-base text-gray-500 mt-2">등록된 {{ deviceMacs.length }}개의 기기를 관리하세요</p>
       </div>
     </div>
 
@@ -87,10 +87,10 @@ onMounted(() => { store.fetchDevices() })
       불러오는 중...
     </div>
 
-    <div v-else-if="devices.length > 0" class="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+    <div v-else-if="deviceMacs.length > 0" class="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
       <div class="divide-y divide-white/10">
         <div
-          v-for="device in devices"
+          v-for="device in deviceMacs"
           :key="device.id"
           class="px-8 py-6 flex items-center justify-between gap-6 hover:bg-white/[0.04] transition group"
         >
@@ -100,13 +100,13 @@ onMounted(() => { store.fetchDevices() })
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-3">
-                <span class="text-xl font-bold text-white truncate">{{ device.deviceName }}</span>
+                <span class="text-xl font-bold text-white truncate">{{ device.device_name }}</span>
               </div>
               <div class="flex items-center gap-2 text-base text-white/40 mt-1.5">
                 <MapPin class="w-4 h-4" />
                 <span>{{ device.location }}</span>
                 <span class="mx-1 text-white/20">|</span>
-                <span class="font-mono text-sm tracking-tight">{{ device.deviceMac }}</span>
+                <span class="font-mono text-sm tracking-tight">{{ device.device_mac }}</span>
               </div>
             </div>
           </div>
@@ -115,7 +115,7 @@ onMounted(() => { store.fetchDevices() })
             <button @click="openEditModal(device)" class="p-3 rounded-xl text-white/30 hover:text-blue-400 hover:bg-white/10 transition">
               <Pencil class="w-6 h-6" />
             </button>
-            <button @click="handleDelete(device.id, device.deviceName)" class="p-3 rounded-xl text-white/30 hover:text-red-400 hover:bg-white/10 transition">
+            <button @click="handleDelete(device.id, device.device_name)" class="p-3 rounded-xl text-white/30 hover:text-red-400 hover:bg-white/10 transition">
               <Trash2 class="w-6 h-6" />
             </button>
           </div>
