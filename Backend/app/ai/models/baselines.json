@@ -1,0 +1,22 @@
+{
+  "48:27:E2:E0:53:DC": {
+    "device_name": "TV",
+    "amp_median": 0.028,
+    "amp_mad": 0.027
+  },
+  "F4:12:FA:9B:62:48": {
+    "device_name": "복사기",
+    "amp_median": 0.047,
+    "amp_mad": 0.026
+  },
+  "F4:12:FA:9C:7F:9C": {
+    "device_name": "멀티탭",
+    "amp_median": 0.031,
+    "amp_mad": 0.015
+  },
+  "F4:12:FA:9C:7F:CC": {
+    "device_name": "공기청정기",
+    "amp_median": 0.016,
+    "amp_mad": 0.002999999999999999
+  }
+}

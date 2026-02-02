@@ -1,0 +1,18 @@
+{
+  "48:27:E2:E0:53:DC": {
+    "device_name": "TV",
+    "standby_load_threshold_amp": 0.09646484375
+  },
+  "F4:12:FA:9B:62:48": {
+    "device_name": "복사기",
+    "standby_load_threshold_amp": 0.23167187500000003
+  },
+  "F4:12:FA:9C:7F:9C": {
+    "device_name": "멀티탭",
+    "standby_load_threshold_amp": 0.1927734375
+  },
+  "F4:12:FA:9C:7F:CC": {
+    "device_name": "공기청정기",
+    "standby_load_threshold_amp": 0.1158203125
+  }
+}
