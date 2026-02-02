@@ -1,13 +1,14 @@
 #!/bin/bash
 # ============================================================
 #  IoTCOSS_NEXCODE - 서비스 재시작 스크립트
-#  사용법: bash reload.sh [frontend|backend|all]
-#  인자 없으면 all (둘 다 재시작)
+#  사용법: bash reload.sh [frontend|backend|ai|all]
+#  인자 없으면 all (전부 재시작)
 # ============================================================
 
 PROJECT_DIR="/IoTCOSS_NEXCODE"
 FRONTEND_DIR="${PROJECT_DIR}/Frontend"
 BACKEND_DIR="${PROJECT_DIR}/Backend"
+AI_DIR="${BACKEND_DIR}/app/ai"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -44,6 +45,29 @@ reload_backend() {
     log "Backend 시작 완료 (PID: $!, 로그: /tmp/iotcoss-backend.log)"
 }
 
+reload_ai() {
+    warn "AI 서버 재시작 중..."
+
+    # 기존 ai_server 프로세스 종료
+    pkill -f "python.*ai_server.py" 2>/dev/null && \
+        log "기존 AI 서버 프로세스 종료" || \
+        warn "실행 중인 AI 서버 없음"
+
+    sleep 1
+
+    cd "${BACKEND_DIR}"
+
+    if [ ! -d "venv" ]; then
+        warn "가상환경 생성 중..."
+        python3 -m venv venv
+    fi
+
+    source venv/bin/activate
+
+    nohup python "${AI_DIR}/ai_server.py" > /tmp/iotcoss-ai.log 2>&1 &
+    log "AI 서버 시작 완료 (PID: $!, 로그: /tmp/iotcoss-ai.log)"
+}
+
 reload_frontend() {
     warn "Frontend 빌드 중..."
     cd "${FRONTEND_DIR}"
@@ -70,12 +94,16 @@ case "$TARGET" in
     frontend)
         reload_frontend
         ;;
+    ai)
+        reload_ai
+        ;;
     all)
         reload_backend
+        reload_ai
         reload_frontend
         ;;
     *)
-        err "사용법: bash reload.sh [frontend|backend|all]"
+        err "사용법: bash reload.sh [frontend|backend|ai|all]"
         exit 1
         ;;
 esac
