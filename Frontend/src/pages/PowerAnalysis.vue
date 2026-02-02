@@ -229,11 +229,15 @@ function getChartY(value: number): number {
       </div>
       
       <!-- X축 레이블 -->
-      <div class="flex justify-between px-2">
+      <div class="relative h-5">
         <span
           v-for="item in hourlyUsage"
           :key="item.hour"
-          class="text-[11px] text-gray-400"
+          class="absolute text-[11px] text-gray-400"
+          :style="{
+            left: `${getChartX(parseInt(item.hour))}%`,
+            transform: 'translateX(-50%)'
+          }"
         >
           {{ item.hour }}시
         </span>
