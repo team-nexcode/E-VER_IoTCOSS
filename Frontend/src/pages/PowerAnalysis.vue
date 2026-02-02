@@ -424,8 +424,4 @@ const hoveredIndex = ref<number | null>(null)
       </div>
     </div>
   </div>
-<<<<<<< HEAD
-  </template>
-=======
 </template>
->>>>>>> a186bb9dfcaf7b0fd7e97a09377c4785e16f6112
