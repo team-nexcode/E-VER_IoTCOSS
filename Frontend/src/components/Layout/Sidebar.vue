@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, type Component } from 'vue'
+import { ref, onMounted, onUnmounted, type Component, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   LayoutDashboard,
@@ -8,46 +8,67 @@ import {
   Clock,
   Bell,
   Monitor,
-  Settings,
+  Bot,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-vue-next'
-import { useDeviceStore } from '@/stores/device'
+import { useDeviceStore } from '@/stores/device' // 프로젝트에 따라 useDeviceMacStore로 변경 가능
 import { storeToRefs } from 'pinia'
 
-/** =========================
- *  Nav
- *  ========================= */
-interface NavItem {
-  to: string
-  icon: Component
-  label: string
-}
+const route = useRoute()
+const deviceStore = useDeviceStore()
+const { devices } = storeToRefs(deviceStore)
 
-const navItems: NavItem[] = [
+/** =========================
+ * Nav Items
+ * ========================= */
+const navItems = [
   { to: '/', icon: LayoutDashboard, label: '대시보드' },
   { to: '/devices', icon: Plug, label: '디바이스' },
   { to: '/power', icon: BarChart3, label: '전력 분석' },
   { to: '/schedule', icon: Clock, label: '스케줄' },
   { to: '/alerts', icon: Bell, label: '알림' },
   { to: '/system-log', icon: Monitor, label: 'System Log' },
-  { to: '/settings', icon: Settings, label: '설정' },
 ]
 
-const mainNavItems: NavItem[] = navItems.filter((i) => i.to !== '/settings')
-const bottomNavItems: NavItem[] = navItems.filter((i) => i.to === '/settings')
+/** =========================
+ * AI 디바이스별 토글 로직
+ * ========================= */
+const isAIPanelOpen = ref(false)
+const aiSettings = ref<Record<number, boolean>>({})
 
-const route = useRoute()
+onMounted(() => {
+  const saved = localStorage.getItem('ai_device_settings')
+  if (saved) aiSettings.value = JSON.parse(saved)
+})
+
+watch(aiSettings, (newVal) => {
+  localStorage.setItem('ai_device_settings', JSON.stringify(newVal))
+}, { deep: true })
+
+const isAllSelected = computed(() => {
+  if (devices.value.length === 0) return false
+  return devices.value.every(d => aiSettings.value[d.id])
+})
+
+function toggleAllAI() {
+  const targetState = !isAllSelected.value
+  const newSettings = { ...aiSettings.value }
+  devices.value.forEach(d => { newSettings[d.id] = targetState })
+  aiSettings.value = newSettings
+}
 
 /** =========================
- *  Clock (server sync)
- *  ========================= */
+ * 🕒 Clock & Server Sync (복구 완료!)
+ * ========================= */
 const responseTime = ref<number | null>(null)
 const status = ref<'checking' | 'online' | 'offline'>('checking')
 const displayTime = ref('--:--:--')
 const displayDate = ref('')
 const serverOffset = ref<number | null>(null)
 
-let syncInterval: ReturnType<typeof setInterval> | null = null
-let clockInterval: ReturnType<typeof setInterval> | null = null
+let syncInterval: any = null
+let clockInterval: any = null
 
 async function syncTime() {
   const start = performance.now()
@@ -59,355 +80,124 @@ async function syncTime() {
       responseTime.value = Math.round(elapsed)
       status.value = 'online'
       const serverMs = new Date(data.server_time).getTime()
-      const localMs = Date.now()
-      serverOffset.value = serverMs - localMs
+      serverOffset.value = serverMs - Date.now()
     } else {
       status.value = 'offline'
-      responseTime.value = null
     }
   } catch {
     status.value = 'offline'
-    responseTime.value = null
-  }
-}
-
-function isActive(to: string): boolean {
-  if (to === '/') return route.path === '/'
-  return route.path.startsWith(to)
-}
-
-/** =========================
- *  Schedule Runner (HH:MM only)
- *  - Schedule.vue가 localStorage(aiot_schedules)에 저장한 걸 읽어서
- *  - Sidebar 시계(now) 기반으로 매일 HH:MM에 디바이스 ON/OFF
- *  ========================= */
-type ScheduleAction = 'on' | 'off'
-interface DeviceSchedule {
-  id: string
-  deviceId: number
-  time: string // "HH:MM"
-  action: ScheduleAction
-}
-
-const LS_SCHEDULES = 'aiot_schedules'
-const LS_SCHEDULE_FIRED = 'aiot_schedules_last_fired' // { [id]: epochMinute }
-
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-function loadSchedules(): DeviceSchedule[] {
-  const list = safeParse<any[]>(localStorage.getItem(LS_SCHEDULES), [])
-  if (!Array.isArray(list)) return []
-  return list
-    .filter(
-      (s) =>
-        s &&
-        typeof s.id === 'string' &&
-        typeof s.deviceId === 'number' &&
-        typeof s.time === 'string' &&
-        (s.action === 'on' || s.action === 'off')
-    )
-    .map((s) => ({
-      id: s.id as string,
-      deviceId: s.deviceId as number,
-      time: s.time as string,
-      action: s.action as ScheduleAction,
-    }))
-}
-
-function loadFiredMap(): Record<string, number> {
-  const m = safeParse<Record<string, number>>(localStorage.getItem(LS_SCHEDULE_FIRED), {})
-  return m && typeof m === 'object' ? m : {}
-}
-function saveFiredMap(m: Record<string, number>) {
-  localStorage.setItem(LS_SCHEDULE_FIRED, JSON.stringify(m))
-}
-
-const deviceStore = useDeviceStore()
-const { devices } = storeToRefs(deviceStore)
-
-/**
- * 디바이스 상태 변경:
- * - 스토어에 제어 함수가 있으면 그걸 우선 사용
- * - 없으면 devices[].isActive 직접 변경 (화면 반영됨)
- */
-async function applyDevicePower(deviceId: number, on: boolean) {
-  const anyStore = deviceStore as any
-
-  // (가능한 후보들) 프로젝트에 맞게 자동 대응
-  const candidates: Array<[string, 'bool2' | 'idOnly']> = [
-    ['setDeviceActive', 'bool2'],
-    ['setDevicePower', 'bool2'],
-    ['setRelay', 'bool2'],
-    ['toggleRelay', 'idOnly'],
-    ['toggleDevice', 'idOnly'],
-  ]
-
-  for (const [name, mode] of candidates) {
-    const fn = anyStore[name]
-    if (typeof fn !== 'function') continue
-
-    try {
-      const r =
-        mode === 'bool2'
-          ? fn(deviceId, on)
-          : on
-            ? fn(deviceId) // idOnly는 "토글"일 수 있으니, on 요청일 때만 호출(보수적으로)
-            : fn(deviceId)
-
-      if (r && typeof r.then === 'function') await r
-      return
-    } catch {
-      // 실패하면 아래 fallback으로
-    }
-  }
-
-  const dev = (devices.value as any[]).find((d) => d.id === deviceId)
-  if (dev) dev.isActive = on
-}
-
-/** now의 HH:MM이 스케줄과 같으면 실행 (분당 1회) */
-function runSchedules(now: Date) {
-  const epochMinute = Math.floor(now.getTime() / 60000)
-  const nowHHMM = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-
-  const list = loadSchedules()
-  if (list.length === 0) return
-
-  const fired = loadFiredMap()
-
-  for (const s of list) {
-    if (s.time !== nowHHMM) continue
-    if (fired[s.id] === epochMinute) continue // 같은 분에 중복 실행 방지
-
-    fired[s.id] = epochMinute
-    saveFiredMap(fired)
-
-    void applyDevicePower(s.deviceId, s.action === 'on')
   }
 }
 
 function tick() {
   if (serverOffset.value === null) return
   const now = new Date(Date.now() + serverOffset.value)
-
   displayTime.value = now.toLocaleTimeString('ko-KR', { hour12: true, timeZone: 'Asia/Seoul' })
   displayDate.value = now.toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    weekday: 'short',
-    timeZone: 'Asia/Seoul',
+    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', timeZone: 'Asia/Seoul',
   })
+}
 
-  // ✅ 스케줄 실행(연월일 무시, HH:MM만)
-  runSchedules(now)
+function isActive(to: string) {
+  return to === '/' ? route.path === '/' : route.path.startsWith(to)
 }
 
 onMounted(() => {
   syncTime()
   syncInterval = setInterval(syncTime, 10000)
-  tick()
   clockInterval = setInterval(tick, 1000)
 })
 
 onUnmounted(() => {
-  if (syncInterval) clearInterval(syncInterval)
-  if (clockInterval) clearInterval(clockInterval)
+  clearInterval(syncInterval)
+  clearInterval(clockInterval)
 })
-
-/**
- * ✅ TS(6133) 경고 제거용
- * (템플릿에서 쓰는 걸 TS가 못 읽는 환경일 때만 뜸)
- * 동작에는 영향 없음.
- */
-void mainNavItems
-void bottomNavItems
-void isActive
 </script>
 
 <template>
-  <!--
-    요청 반영:
-    1) 글씨가 너무 작음 → 메뉴 텍스트를 다시 "text-lg + font-bold(원래 느낌)"로 복원
-    2) 배치가 위에만 쏠림 → nav를 가운데로 “자연스럽게” 내려오게 (여유 공간이면 my-auto로 중앙 정렬)
-    3) 왼쪽 사이드바 안에서만 수정
-  -->
   <aside
-    class="fixed left-0 bottom-0 w-[240px] bg-[#111827] border-r border-gray-800 flex flex-col z-40"
+    class="fixed left-0 bottom-0 w-[240px] bg-[#111827] border-r border-gray-800 flex flex-col z-40 shadow-2xl"
     :style="{ top: 'var(--topbar-height, 60px)' }"
   >
-
-    <!-- 메인 내비게이션: 중앙으로 내려오는 느낌 -->
-    <nav class="flex-1 px-4 overflow-y-auto flex">
-      <!-- 여유 공간이면 가운데로(쏠림 완화), 공간 부족하면 자연스럽게 위로 붙고 스크롤 -->
-      <div class="w-full my-auto space-y-3 py-2">
+    <nav class="flex-1 px-4 overflow-y-auto custom-scroll">
+      <div class="w-full space-y-2 py-6">
         <RouterLink
-          v-for="item in mainNavItems"
+          v-for="item in navItems"
           :key="item.to"
           :to="item.to"
           :class="[
-            'group relative flex items-center gap-5 px-5 py-4 rounded-3xl',
-            'text-lg font-bold transition-all duration-200',
-            'border',
-            isActive(item.to)
-              ? 'bg-white/[0.06] text-white border-white/10 shadow-[0_10px_26px_-18px_rgba(0,0,0,0.70)]'
-              : 'bg-transparent text-gray-300 border-transparent hover:bg-white/[0.045] hover:text-white hover:border-white/10 hover:translate-x-[1px]',
+            'group relative flex items-center gap-5 px-5 py-4 rounded-3xl text-lg font-bold transition-all border',
+            isActive(item.to) ? 'bg-white/[0.06] text-white border-white/10 shadow-lg' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/[0.02]'
           ]"
         >
-          <!-- active indicator (아주 얇게) -->
-          <span
-            v-if="isActive(item.to)"
-            class="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-[2px] rounded-full bg-white/70"
-          />
-
-          <!-- 아이콘: 원래 느낌(크게) + 은은한 칩 -->
-          <span
-            :class="[
-              'grid place-items-center w-10 h-10 rounded-2xl flex-shrink-0 border transition-colors duration-200',
-              isActive(item.to)
-                ? 'bg-white/5 border-white/10'
-                : 'bg-white/[0.02] border-white/5 group-hover:bg-white/[0.04] group-hover:border-white/10',
-            ]"
-          >
-            <component
-              :is="item.icon"
-              :class="[
-                'w-6 h-6 transition-colors duration-200',
-                isActive(item.to) ? 'text-white' : 'text-gray-300 group-hover:text-white',
-              ]"
-            />
-          </span>
-
+          <component :is="item.icon" :class="['w-6 h-6', isActive(item.to) ? 'text-blue-400' : 'text-gray-400']" />
           <span class="flex-1 truncate">{{ item.label }}</span>
-
-          <!-- hover affordance -->
-          <span
-            :class="[
-              'text-base opacity-0 -translate-x-1 transition-all duration-200',
-              'group-hover:opacity-60 group-hover:translate-x-0',
-              isActive(item.to) ? 'opacity-60 translate-x-0 text-white/70' : 'text-gray-500',
-            ]"
-          >
-            ›
-          </span>
         </RouterLink>
       </div>
     </nav>
 
-    <!-- 설정(하단에 따로 두어 시각적 분산) -->
-    <div class="px-4 pt-2">
-      <div class="h-px bg-gradient-to-r from-transparent via-gray-700/60 to-transparent" />
-      <div class="pt-3 space-y-3">
-        <RouterLink
-          v-for="item in bottomNavItems"
-          :key="item.to"
-          :to="item.to"
-          :class="[
-            'group relative flex items-center gap-5 px-5 py-4 rounded-3xl',
-            'text-lg font-bold transition-all duration-200',
-            'border',
-            isActive(item.to)
-              ? 'bg-white/[0.06] text-white border-white/10 shadow-[0_10px_26px_-18px_rgba(0,0,0,0.70)]'
-              : 'bg-transparent text-gray-300 border-transparent hover:bg-white/[0.045] hover:text-white hover:border-white/10 hover:translate-x-[1px]',
-          ]"
-        >
-          <span
-            v-if="isActive(item.to)"
-            class="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-[2px] rounded-full bg-white/70"
-          />
-          <span
-            :class="[
-              'grid place-items-center w-10 h-10 rounded-2xl flex-shrink-0 border transition-colors duration-200',
-              isActive(item.to)
-                ? 'bg-white/5 border-white/10'
-                : 'bg-white/[0.02] border-white/5 group-hover:bg-white/[0.04] group-hover:border-white/10',
-            ]"
-          >
-            <component
-              :is="item.icon"
-              :class="[
-                'w-6 h-6 transition-colors duration-200',
-                isActive(item.to) ? 'text-white' : 'text-gray-300 group-hover:text-white',
-              ]"
-            />
-          </span>
-          <span class="flex-1 truncate">{{ item.label }}</span>
-          <span
-            :class="[
-              'text-base opacity-0 -translate-x-1 transition-all duration-200',
-              'group-hover:opacity-60 group-hover:translate-x-0',
-              isActive(item.to) ? 'opacity-60 translate-x-0 text-white/70' : 'text-gray-500',
-            ]"
-          >
-            ›
-          </span>
-        </RouterLink>
+    <div class="px-4 pb-4">
+      <div class="h-px bg-gradient-to-r from-transparent via-gray-700/60 to-transparent mb-4" />
+      
+      <div class="bg-blue-500/5 border border-blue-500/10 rounded overflow-hidden">
+        <button @click="isAIPanelOpen = !isAIPanelOpen" class="w-full flex items-center justify-between p-5 hover:bg-blue-500/10 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-blue-500/15 rounded-xl text-blue-400"><Bot class="w-6 h-6" /></div>
+            <div class="text-left">
+              <p class="text-[17px] font-bold text-white leading-none">AI 자동 차단</p>
+              <p class="text-[12px] text-blue-400/60 mt-1.5 uppercase font-bold tracking-widest">Device Select</p>
+            </div>
+          </div>
+          <component :is="isAIPanelOpen ? ChevronUp : ChevronDown" class="w-4 h-4 text-gray-500" />
+        </button>
+
+        <div v-if="isAIPanelOpen" class="px-5 pb-5 space-y-4 max-h-[180px] overflow-y-auto custom-scroll border-t border-white/5 pt-4">
+          <div class="flex items-center justify-between pb-2 border-b border-white/5">
+            <span class="text-[13px] font-bold text-blue-400 uppercase">전체 적용</span>
+            <button @click="toggleAllAI" :class="['relative inline-flex h-5 w-10 items-center rounded-full transition-colors', isAllSelected ? 'bg-blue-600' : 'bg-gray-700']">
+              <span :class="['inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform', isAllSelected ? 'translate-x-5' : 'translate-x-1']" />
+            </button>
+          </div>
+          <div v-for="device in devices" :key="device.id" class="flex items-center justify-between">
+            <div class="flex flex-col min-w-0">
+              <span class="text-sm font-bold text-gray-300 truncate">{{ device.name }}</span>
+              <span class="text-[11px] text-gray-500 uppercase">{{ device.location }}</span>
+            </div>
+            <button @click="aiSettings[device.id] = !aiSettings[device.id]" :class="['relative inline-flex h-4.5 w-8 items-center rounded-full transition-colors', aiSettings[device.id] ? 'bg-blue-500' : 'bg-gray-800']">
+              <span :class="['inline-block h-3 w-3 transform rounded-full bg-white transition-transform', aiSettings[device.id] ? 'translate-x-4' : 'translate-x-0.5']" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 하단 정보(조금 더 존재감 있게) -->
-    <div class="p-4 border-t border-gray-800 space-y-3 mt-3">
-      <!-- 서버 동기화 시계 -->
-      <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-3 text-center">
+    <div class="p-6 border-t border-gray-800 space-y-4 bg-[#0d121f]">
+      <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-center shadow-inner">
         <template v-if="status === 'offline'">
-          <p class="text-sm font-mono font-bold text-red-400">통신 오류</p>
-          <p class="text-[10px] text-red-500/70 mt-1">서버 연결 실패</p>
-        </template>
-        <template v-else-if="serverOffset !== null">
-          <p class="text-xl font-mono font-bold text-white tracking-wider">{{ displayTime }}</p>
-          <p class="text-[10px] text-gray-500 mt-0.5">{{ displayDate }}</p>
+          <p class="text-sm font-mono font-bold text-red-400 uppercase">OFFLINE</p>
         </template>
         <template v-else>
-          <p class="text-sm font-mono text-yellow-400">동기화 중...</p>
+          <p class="text-2xl font-mono font-bold text-white tracking-wider leading-none">{{ displayTime }}</p>
+          <p class="text-[11px] text-gray-500 mt-2 font-medium">{{ displayDate }}</p>
         </template>
       </div>
 
-      <!-- 시스템 상태 -->
-      <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-3">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <div
-              :class="[
-                'w-2 h-2 rounded-full',
-                status === 'online'
-                  ? 'bg-green-500 animate-pulse'
-                  : status === 'offline'
-                    ? 'bg-red-500'
-                    : 'bg-yellow-500 animate-pulse',
-              ]"
-            />
-            <span class="text-xs text-gray-400">시스템 상태</span>
-          </div>
-
-          <span class="text-[10px] text-gray-600">
-            {{ status === 'online' && responseTime !== null ? `${responseTime}ms` : status === 'offline' ? '—' : '...' }}
-          </span>
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center gap-2">
+          <div :class="['w-2 h-2 rounded-full shadow-[0_0_8px]', status === 'online' ? 'bg-green-500 shadow-green-500 animate-pulse' : 'bg-red-500 shadow-red-500']" />
+          <span class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">System</span>
         </div>
-
-        <p
-          :class="[
-            'text-xs font-medium',
-            status === 'online'
-              ? 'text-green-400'
-              : status === 'offline'
-                ? 'text-red-400'
-                : 'text-yellow-400',
-          ]"
-        >
-          {{ status === 'online' ? '정상 운영 중' : status === 'offline' ? '서버 연결 실패' : '연결 중...' }}
-        </p>
+        <span class="text-[10px] font-mono text-gray-600 font-bold uppercase">
+          {{ status === 'online' ? (responseTime ? `${responseTime}ms` : 'Active') : 'Error' }}
+        </span>
       </div>
     </div>
   </aside>
 </template>
+
+<style scoped>
+.custom-scroll::-webkit-scrollbar { width: 4px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+nav { -ms-overflow-style: none; scrollbar-width: none; }
+nav::-webkit-scrollbar { display: none; }
+</style>
