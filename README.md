@@ -4,8 +4,6 @@
 
 **Arduino 기반 스마트 플러그를 활용한 가정 내 전력 소비 모니터링 및 AI 기반 대기전력 자동 절감 시스템**
 
-[Features](#주요-기능) • [Tech Stack](#기술-스택) • [Architecture](#시스템-아키텍처) • [Installation](#설치-및-실행) • [API Docs](#api-문서)
-
 </div>
 
 ---
