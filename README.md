@@ -96,7 +96,7 @@ E-VER는 ESP32 기반 스마트 플러그 디바이스를 통해 가정 내 전�
 |------|------|
 | **Nginx** | 리버스 프록시 / 정적 파일 서빙 |
 | **Docker** | 컨테이너화 |
-| **Mosquitto** | MQTT 브로커 |
+| **Mosquitto** | 사물인터넷 혁신사업단 플랫폼 |
 | **AWS EC2** | 서버 호스팅 (Ubuntu) |
 
 ---
@@ -176,7 +176,7 @@ E-VER는 ESP32 기반 스마트 플러그 디바이스를 통해 가정 내 전�
 
 3. **AI 자동 제어**:
    ```
-   AI Service (60분 주기) → DB 조회 (ai_auto_control=true) →
+   AI Service (10초 주기) → DB 조회 (ai_auto_control=true) →
    AI Server (패턴 분석) → 추천 결정 → Mobius Service → 
    MQTT → IoT Device
    ```
@@ -448,7 +448,7 @@ GET    /auto-control/recommendations         # 전체 디바이스 AI 추천
 
 ### 3. 자동 실행
 ```python
-# ai_auto_control_service.py - 60분 주기 실행
+# ai_auto_control_service.py - 10초 주기 실행
 1. DB에서 ai_auto_control=True인 디바이스 조회
 2. AI 서버에 추천 요청
 3. 추천에 따라 릴레이 제어
