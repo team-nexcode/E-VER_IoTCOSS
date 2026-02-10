@@ -17,12 +17,13 @@
       "Bash(curl:*)",
       "Bash(python3:*)",
       "Bash(pip3:*)",
-      "Bash(PGPASSWORD=password psql:*)",
+      "Bash(PGPASSWORD=[DB_PASSWORD] psql:*)",
       "Bash(conda list:*)",
       "Bash(/tmp/db_check_venv/bin/pip install:*)",
       "Bash(/tmp/db_check_venv/bin/python3:*)",
       "WebFetch(domain:iotcoss.nexcode.kr)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(echo:*)"
     ]
   }
 }

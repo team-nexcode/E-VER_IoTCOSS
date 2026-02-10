@@ -20,7 +20,7 @@ String ae = "ae_nexcode";
 // 3. 인증 헤더
 String apiKey = "[MOBIUS_API_KEY]";
 String lectureId = "[LECTURE_ID]";
-String creatorId = "dgunexcode";
+String creatorId = "[CREATOR_ID]";
 String origin = "SOrigin_nexcode";
 
 WiFiSSLClient client;

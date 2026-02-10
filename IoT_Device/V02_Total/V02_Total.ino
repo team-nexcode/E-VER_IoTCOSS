@@ -7,7 +7,7 @@ DHT11 dht(A1);
 
 byte mac[6];
 
-char ssid[] = "CSE-3173_2.4G";
+char ssid[] = "[WIFI_SSID]";
 char pass[] = "[WIFI_PASSWORD]";
 
 char server[] = "onem2m.iotcoss.ac.kr"; 
@@ -21,7 +21,7 @@ String cnt_name = "monitor";
 // 인증 헤더
 String apiKey = "[MOBIUS_API_KEY]";
 String lectureId = "[LECTURE_ID]";
-String creatorId = "dgunexcode";
+String creatorId = "[CREATOR_ID]";
 String origin = "SOrigin_nexcode";
 
 WiFiSSLClient client;

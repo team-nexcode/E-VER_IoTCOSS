@@ -6,7 +6,7 @@
 // ----------------------------------------------------------------
 // [설정] 네트워크 및 oneM2M
 // ----------------------------------------------------------------
-const char ssid[] = "CSE-3173_2.4G";
+const char ssid[] = "[WIFI_SSID]";
 const char pass[] = "[WIFI_PASSWORD]";
 
 const char server[] = "onem2m.iotcoss.ac.kr";
@@ -19,7 +19,7 @@ const String cnt_cmd = "switch";
 
 const String apiKey = "[MOBIUS_API_KEY]";
 const String lectureId = "[LECTURE_ID]";
-const String creatorId = "dgunexcode";
+const String creatorId = "[CREATOR_ID]";
 const String origin = "SOrigin_nexcode";
 
 // ----------------------------------------------------------------
